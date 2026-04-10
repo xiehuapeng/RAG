@@ -159,14 +159,14 @@ def get_document_chunks(document_id: int, db: Session = Depends(get_db), user=De
 def get_document_content_api(document_id: int, db: Session = Depends(get_db), user=Depends(get_current_user)):
     # 读取解析后的全文内容，适合前端做原文预览。
     document = get_document_or_404(db, document_id)
-    return success({"content": get_document_content(document)})
+    return success({"content": get_document_content(document, db)})
 
 
 @router.post("/{document_id}/outline")
 def get_document_outline_api(document_id: int, db: Session = Depends(get_db), user=Depends(get_current_user)):
     # 返回文档结构化大纲，供前端树形目录展示。
     document = get_document_or_404(db, document_id)
-    return success(get_document_outline(document))
+    return success(get_document_outline(document, db))
 
 
 @router.post("/{document_id}/reindex")

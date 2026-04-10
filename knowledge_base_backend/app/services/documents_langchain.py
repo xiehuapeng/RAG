@@ -35,6 +35,39 @@ class ChunkSpec:
     metadata: dict[str, Any]
 
 
+def resolve_document_storage_path(document: Document, db: Session | None = None) -> Path:
+    # 兼容旧数据里写死的绝对路径：优先用库里的路径，找不到时回退到当前 uploads 目录。
+    raw_path = Path(document.storage_path)
+    candidates: list[Path] = [raw_path]
+
+    stored_name = raw_path.name
+    if stored_name:
+        candidates.append(UPLOAD_DIR / stored_name)
+
+    original_name = Path(document.file_name).name.strip() if document.file_name else ""
+    if original_name:
+        candidates.append(UPLOAD_DIR / original_name)
+
+    seen: set[str] = set()
+    for candidate in candidates:
+        normalized = str(candidate)
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        if not candidate.exists():
+            continue
+
+        if normalized != document.storage_path:
+            document.storage_path = normalized
+            if db is not None:
+                db.add(document)
+                db.commit()
+                db.refresh(document)
+        return candidate
+
+    raise HTTPException(status_code=404, detail={"code": 3006, "message": "document source file not found"})
+
+
 def validate_upload(file: UploadFile, payload: bytes) -> None:
     # 服务端兜底校验上传格式和体积，避免前端校验被绕过。
     suffix = Path(file.filename or "").suffix.lower()
@@ -219,7 +252,7 @@ def ingest_document(db: Session, document: Document) -> Document:
     # 文档入库主流程：
     # pending -> processing -> ready/error
     # 上传后的解析、切块和向量索引都在这里完成。
-    path = Path(document.storage_path)
+    path = resolve_document_storage_path(document, db)
     document.status = "processing"
     document.error_message = None
     db.add(document)
@@ -320,14 +353,14 @@ def save_upload_batch(
     return results
 
 
-def get_document_content(document: Document) -> str:
+def get_document_content(document: Document, db: Session | None = None) -> str:
     # 实时从原始文件解析全文，确保预览内容与磁盘文件一致。
-    return parse_document(Path(document.storage_path))
+    return parse_document(resolve_document_storage_path(document, db))
 
 
-def get_document_outline(document: Document) -> list[dict[str, Any]]:
+def get_document_outline(document: Document, db: Session | None = None) -> list[dict[str, Any]]:
     # 大纲来自结构化解析结果，不依赖数据库里的 chunk。
-    structure = parse_document_structure(Path(document.storage_path))
+    structure = parse_document_structure(resolve_document_storage_path(document, db))
     return [_section_to_outline(section) for section in structure.sections]
 
 
