@@ -4,7 +4,24 @@ node_modules/
 # Python
 .venv/
 __pycache__/
+.pytest_cache/
 *.pyc
+
+# Local config
+.env
+.env.local
+
+# Backend runtime artifacts
+knowledge_base_backend/.env
+knowledge_base_backend/*.log
+knowledge_base_backend/*.db
+knowledge_base_backend/*.db-*
+knowledge_base_backend/data/*
+!knowledge_base_backend/data/.gitkeep
+knowledge_base_backend/static/
+
+# Frontend runtime artifacts
+knowledge_base_frontend/*.log
 
 # OS / editor
 .DS_Store
