@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数智化运营知识库 - 功能设计页面元素</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: white;
+            text-align: center;
+            margin-bottom: 40px;
+            font-size: 32px;
+            font-weight: 600;
+        }
+        .page-card {
+            background: white;
+            border-radius: 16px;
+            padding: 32px;
+            margin-bottom: 24px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+        .page-title {
+            font-size: 24px;
+            color: #1a1a2e;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 2px solid #667eea;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .page-title .num {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: 600;
+        }
+        .element-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .element-table th {
+            background: #f8f9fc;
+            color: #4a5568;
+            font-weight: 600;
+            text-align: left;
+            padding: 12px 16px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        .element-table td {
+            padding: 12px 16px;
+            border-bottom: 1px solid #e2e8f0;
+            color: #2d3748;
+        }
+        .element-table tr:hover {
+            background: #f8f9fc;
+        }
+        .function-name {
+            font-weight: 600;
+            color: #667eea;
+        }
+        .tag {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .tag-input { background: #e6f7ff; color: #1890ff; }
+        .tag-button { background: #f6ffed; color: #52c41a; }
+        .tag-display { background: #fff7e6; color: #fa8c16; }
+        .tag-list { background: #f9f0ff; color: #722ed1; }
+        .summary {
+            text-align: center;
+            margin-top: 40px;
+            color: rgba(255,255,255,0.8);
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📋 数智化运营知识库 - 功能设计页面元素</h1>
+        
+        <!-- 5.1 登录页 -->
+        <div class="page-card">
+            <div class="page-title">
+                <span class="num">1</span>
+                登录页
+            </div>
+            <table class="element-table">
+                <thead>
+                    <tr>
+                        <th style="width: 20%">功能点</th>
+                        <th>展示元素</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="function-name">登录入口</td>
+                        <td>用户名输入框、密码输入框、登录按钮、"记住我"复选框</td>
+                    </tr>
+                    <tr>
+                        <td class="function-name">权限范围</td>
+                        <td>提示文案：一阶段仅运营管理员可登录</td>
+                    </tr>
+                    <tr>
+                        <td class="function-name">登录结果</td>
+                        <td>成功：跳转首页；失败：红色错误提示（用户名或密码错误）</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 5.2 文档上传页 -->
+        <div class="page-card">
+            <div class="page-title">
+                <span class="num">2</span>
+                文档上传页
+            </div>
+            <table class="element-table">
+                <thead>
+                    <tr>
+                        <th style="width: 20%">功能点</th>
+                        <th>展示元素</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="function-name">单文件上传</td>
+                        <td>文件选择按钮、支持拖拽上传、文件类型提示（doc/docx/pdf）</td>
+                    </tr>
+                    <tr>
+                        <td class="function-name">批量上传</td>
+                        <td>多文件选择器、上传队列列表、每个文件的进度条</td>
+                    </tr>
+                    <tr>
+                        <td class="function-name">文件校验</td>
+                        <td>格式错误提示（仅支持doc/docx/pdf）、大小超限提示（最大10MB）</td>
+                    </tr>
+                    <tr>
+                        <td class="function-name">同名覆盖提示</td>
+                        <td>确认弹窗："同名文件已存在，确定覆盖旧版本吗？"（确认/取消按钮）</td>
+                    </tr>
+                    <tr>
+                        <td class="function-name">上传结果展示</td>
+                        <td>状态标签：✅ 成功（绿色）/ ⏳ 处理中（黄色）/ ❌ 失败（红色）</td>
+                    </tr>
+                    <tr>
+                        <td class="function-name">跳转解析页</td>
+                        <td>"查看解析结果" 链接/按钮，点击跳转至文档解析结果页</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 5.3 文档解析结果页 -->
+        <div class="page-card">
+            <div class="page-title">
+                <span class="num">3</span>
+                文档解析结果页
+            </div>
+            <table class="element-table">
+                <thead>
+                    <tr>
+                        <th style="width: 20%">功能点</th>
+                        <th>展示元素</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="function-name">文档信息展示</td>
+                        <td>文档名称、文件格式图标、上传时间、状态标签（pending/processing/ready/error）</td>
+                    </tr>
+                    <tr>
+                        <td class="function-name">目录树展示</td>
+                        <td>树形结构：章节层级（第一章 > 1.1 > 1.1.1），可展开/折叠</td>
+                    </tr>
+                    <tr>
+                        <td class="function-name">正文预览</td>
+                        <td>解析后的富文本内容，支持滚动查看、分段高亮</td>
+                    </tr>
+                    <tr>
+                        <td class="function-name">切分结果展示</td>
+                        <td>知识单元列表，每条显示：片段序号、内容摘要、关键词标签、来源章节</td>
+                    </tr>
+                    <tr>
+                        <td class="function-name">标签查看</td>
+                        <td>关键词标签（可点击筛选）、摘要文本、分类下拉选择框</td>
+                    </tr>
+                    <tr>
+                        <td class="function-name">删除片段</td>
+                        <td>每条知识单元后的 🗑️ 删除按钮，点击确认后移除</td>
+                    </tr>
+                    <tr>
+                        <td class="function-name">修改标签</td>
+                        <td>关键词输入框、摘要编辑框、分类下拉选择、"保存"按钮</td>
+                    </tr>
+                    <tr>
+                        <td class="function-name">重新切分</td>
+                        <td>"重新切分" 按钮，点击后重新执行切分算法，显示新结果</td>
+                    </tr>
+                    <tr>
+                        <td class="function-name">重建索引</td>
+                        <td>"重建索引" 按钮，点击后重新生成向量和关键词索引</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 5.4 智能问答页 -->
+        <div class="page-card">
+            <div class="page-title">
+                <span class="num">4</span>
+                智能问答页
+            </div>
+            <table class="element-table">
+                <thead>
+                    <tr>
+                        <th style="width: 20%">功能点</th>
+                        <th>展示元素</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="function-name">会话列表</td>
+                        <td>历史会话卡片：会话名称、最后消息时间、最后一条消息摘要</td>
+                    </tr>
+                    <tr>
+                        <td class="function-name">新建会话</td>
+                        <td>"+ 新建会话" 按钮，点击创建新会话并清空聊天区</td>
+                    </tr>
+                    <tr>
+                        <td class="function-name">问题输入</td>
+                        <td>文本输入框（placeholder="请输入问题..."）、发送按钮 (📤)</td>
+                    </tr>
+                    <tr>
+                        <td class="function-name">默认热门问题</td>
+                        <td>推荐问题列表：常用问题标签，点击自动填入输入框</td>
+                    </tr>
+                    <tr>
+                        <td class="function-name">多轮问答</td>
+                        <td>消息气泡：左侧 AI 回复（蓝色）、右侧用户问题（灰色）、上下文轮次计数</td>
+                    </tr>
+                    <tr>
+                        <td class="function-name">答案展示</td>
+                        <td>AI 回复文本内容、可复制的答案文本</td>
+                    </tr>
+                    <tr>
+                        <td class="function-name">引用溯源</td>
+                        <td>引用编号列表（如 [1][2]）、每条引用下展示来源片段内容预览</td>
+                    </tr>
+                    <tr>
+                        <td class="function-name">原文查看</td>
+                        <td>"查看原文" 链接/按钮，点击弹出或跳转到原文详情</td>
+                    </tr>
+                    <tr>
+                        <td class="function-name">相似问题推荐</td>
+                        <td>推荐问题列表卡片（无答案或低置信时显示）：问题文本、点击跳转</td>
+                    </tr>
+                    <tr>
+                        <td class="function-name">相似片段推荐</td>
+                        <td>相关知识片段列表：片段摘要、来源文档、点击查看详情</td>
+                    </tr>
+                    <tr>
+                        <td class="function-name">用户反馈</td>
+                        <td>"👍 有用" / "👎 无用" 按钮、补充意见输入框（反馈时展开）</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 5.5 运营看板页 -->
+        <div class="page-card">
+            <div class="page-title">
+                <span class="num">5</span>
+                运营看板页
+            </div>
+            <table class="element-table">
+                <thead>
+                    <tr>
+                        <th style="width: 20%">功能点</th>
+                        <th>展示元素</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="function-name">提问总量</td>
+                        <td>数字卡片：大数字显示累计次数、趋势折线图（近7天/30天）</td>
+                    </tr>
+                    <tr>
+                        <td class="function-name">文档上传量</td>
+                        <td>数字卡片：已上传文档总数、上传趋势图</td>
+                    </tr>
+                    <tr>
+                        <td class="function-name">文档解析成功率</td>
+                        <td>百分比数值 + 进度条（绿色填充），成功率 = 成功数/总数</td>
+                    </tr>
+                    <tr>
+                        <td class="function-name">反馈有用率</td>
+                        <td>百分比数值 + 环形图（绿色部分），有用率 = 有用数/总反馈数</td>
+                    </tr>
+                    <tr>
+                        <td class="function-name">高频问题 Top N</td>
+                        <td>排名列表：序号、问题文本、提问次数、变化趋势（↑↓）</td>
+                    </tr>
+                    <tr>
+                        <td class="function-name">无答案问题 Top N</td>
+                        <td>排名列表：序号、问题文本、出现次数、颜色标记（红色警告）</td>
+                    </tr>
+                    <tr>
+                        <td class="function-name">最近反馈明细</td>
+                        <td>数据表格：时间、用户问题、反馈类型（有用/无用）、补充意见</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="summary">
+            基于《数智化运营知识库_一阶段Demo_开发设计文档V1.docx》整理 | 共5个页面 | 生成时间: 2026-04-07
+        </div>
+    </div>
+</body>
+</html>
