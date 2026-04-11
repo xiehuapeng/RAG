@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import uuid
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
 from fastapi import HTTPException, UploadFile
@@ -37,10 +37,16 @@ class ChunkSpec:
 
 def resolve_document_storage_path(document: Document, db: Session | None = None) -> Path:
     # 兼容旧数据里写死的绝对路径：优先用库里的路径，找不到时回退到当前 uploads 目录。
-    raw_path = Path(document.storage_path)
+    raw_storage_path = (document.storage_path or "").strip()
+    raw_path = Path(raw_storage_path)
     candidates: list[Path] = [raw_path]
 
-    stored_name = raw_path.name
+    stored_name = ""
+    for parser in (PureWindowsPath, PurePosixPath, Path):
+        parsed_name = parser(raw_storage_path).name.strip() if raw_storage_path else ""
+        if parsed_name:
+            stored_name = parsed_name
+            break
     if stored_name:
         candidates.append(UPLOAD_DIR / stored_name)
 

@@ -19,6 +19,8 @@ from app.services.chat import send_message, stream_message
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
 
+@router.get("/sessions")
+@router.get("/sessions/")
 @router.post("/sessions")
 def list_sessions(db: Session = Depends(get_db), user=Depends(get_current_user)):
     # 返回当前用户的所有会话，并附带最后一条消息摘要，方便前端左侧会话栏展示。
@@ -56,6 +58,8 @@ def create_session(payload: CreateSessionRequest, db: Session = Depends(get_db),
     return success({"id": session.id, "title": session.title})
 
 
+@router.get("/sessions/{session_id}")
+@router.get("/sessions/{session_id}/")
 @router.post("/sessions/{session_id}")
 def get_session(session_id: int, db: Session = Depends(get_db), user=Depends(get_current_user)):
     # 进入聊天页时，前端通过这个接口恢复整段历史消息。
@@ -129,6 +133,8 @@ def post_message_stream(
     return stream_message(db, session, payload.content)
 
 
+@router.get("/popular-questions")
+@router.get("/popular-questions/")
 @router.post("/popular-questions")
 def get_popular_questions(db: Session = Depends(get_db), user=Depends(get_current_user)):
     # 首页/聊天页的推荐问题列表。
