@@ -1,0 +1,2 @@
+2026-04-12 14:43:55,382 | INFO | probe | file logging probe
+2026-04-12 14:48:36,778 | INFO | app.main | [startup.logging] daily file logging enabled path=C:\code\langchain_code\cmiot\CMIOT-rag\knowledge_base_backend\logs\backend.log
