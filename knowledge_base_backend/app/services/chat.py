@@ -1,4 +1,5 @@
 from __future__ import annotations
+import logging
 import traceback
 # 用于保存 references_json 和 summary_json。
 import json
@@ -32,6 +33,14 @@ from app.services.qa_langchain import (
 )
 # 混合检索主入口。
 from app.services.retrieval_langchain import retrieve
+
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+
+def _to_json(data: object) -> str:
+    return json.dumps(data, ensure_ascii=False, default=str)
 
 
 # 当知识库没有找到足够可靠的证据时，返回的兜底回答。
@@ -302,13 +311,21 @@ def _answer_with_minimax(
             answer_text=answer_text,
             retrieval_results=retrieval_results,
         )
-        return {
+        result = {
             "answer": answer_text,
             "references": legacy_references,
             "suggestions": suggestions,
             "summary": summary_text,
             "session_summary": session_summary,
         }
+        logger.info(
+            "[qa.answer.final] mode=invoke session_id=%s fallback=true answer=%s references=%s suggestions=%s",
+            session.id,
+            answer_text,
+            _to_json(legacy_references),
+            _to_json(suggestions),
+        )
+        return result
 
     # 提取追问建议与摘要。
     suggestions = extract_followup_questions(answer_text)
@@ -319,13 +336,21 @@ def _answer_with_minimax(
         answer_text=answer_text,
         retrieval_results=retrieval_results,
     )
-    return {
+    result = {
         "answer": answer_text,
         "references": evidence_items,
         "suggestions": suggestions,
         "summary": summary_text,
         "session_summary": session_summary,
     }
+    logger.info(
+        "[qa.answer.final] mode=invoke session_id=%s fallback=false answer=%s references=%s suggestions=%s",
+        session.id,
+        answer_text,
+        _to_json(evidence_items),
+        _to_json(suggestions),
+    )
+    return result
 
 
 def send_message(db: Session, session: ChatSession, content: str) -> tuple[Message, Message, list[str]]:
@@ -359,6 +384,13 @@ def send_message(db: Session, session: ChatSession, content: str) -> tuple[Messa
                 "confidence": 0.2,
             },
         }
+        logger.info(
+            "[qa.answer.final] mode=invoke session_id=%s fallback=true reason=minimax_config_error answer=%s references=%s suggestions=%s",
+            session.id,
+            answer_text,
+            _to_json(references),
+            _to_json(suggestions),
+        )
 
     # 创建助手消息记录。
     assistant_message = Message(
@@ -405,15 +437,15 @@ def stream_message(db: Session, session: ChatSession, content: str) -> Streaming
 
             # 读取 prompt 历史和记忆上下文。
             recent_messages = _load_prompt_messages(db, session_id, content)
+            logger.info("finished loading prompt messages for session_id=%s count=%d", session_id, len(recent_messages))
             memory_context = _build_memory_context(session_row, recent_messages)
-
+            logger.info("finished building memory context for memory_context=%s", memory_context)
             # 当前链路不再调用语义理解模型，直接进入检索阶段。
             yield _sse("status", {"phase": "retrieving", "message": "正在检索知识库"})
             analysis = _build_direct_analysis(content)
             retrieval_query = content.strip()
             retrieval_results = retrieve(db, session_id, retrieval_query, top_k=QA_RETRIEVE_TOP_K)
             evidence_context, evidence_items = build_evidence_context(retrieval_results)
-
             # 将命中的证据先发给前端，便于用户提前看到来源。
             yield _sse(
                 "evidence",
@@ -475,6 +507,13 @@ def stream_message(db: Session, session: ChatSession, content: str) -> Streaming
                         session_row.title = content[:20]
                     db.add(session_row)
                     db.commit()
+                    logger.info(
+                        "[qa.answer.final] mode=stream session_id=%s fallback=true reason=stream_error answer=%s references=%s suggestions=%s",
+                        session_id,
+                        answer_text,
+                        _to_json(references),
+                        _to_json(suggestions),
+                    )
                     yield _sse("delta", {"content": answer_text})
                     yield _sse("end", {"answer": answer_text, "summary": summary_text, "suggestions": suggestions})
                     return
@@ -482,9 +521,11 @@ def stream_message(db: Session, session: ChatSession, content: str) -> Streaming
 
             # 拼接所有流式文本得到完整答案。
             answer_text = _strip_hidden_reasoning("".join(collected).strip())
+            stream_fallback = False
             if not answer_text and _should_fallback_no_answer(retrieval_results):
                 answer_text, references, suggestions = build_answer(content, retrieval_results)
                 references_payload = references
+                stream_fallback = True
             else:
                 references_payload = evidence_items
                 suggestions = extract_followup_questions(answer_text)
@@ -511,6 +552,14 @@ def stream_message(db: Session, session: ChatSession, content: str) -> Streaming
                 session_row.title = content[:20]
             db.add(session_row)
             db.commit()
+            logger.info(
+                "[qa.answer.final] mode=stream session_id=%s fallback=%s answer=%s references=%s suggestions=%s",
+                session_id,
+                str(stream_fallback).lower(),
+                answer_text,
+                _to_json(references_payload),
+                _to_json(suggestions),
+            )
 
             # 通知前端流式结束。
             yield _sse("end", {"answer": answer_text, "summary": summary_text, "suggestions": suggestions})
@@ -546,6 +595,13 @@ def stream_message(db: Session, session: ChatSession, content: str) -> Streaming
                     session_row.title = content[:20]
                 db.add(session_row)
             db.commit()
+            logger.info(
+                "[qa.answer.final] mode=stream session_id=%s fallback=true reason=minimax_config_error answer=%s references=%s suggestions=%s",
+                session_id,
+                answer_text,
+                _to_json(references),
+                _to_json(suggestions),
+            )
             yield _sse("delta", {"content": answer_text})
             yield _sse("end", {"answer": answer_text, "summary": summary_text, "suggestions": suggestions})
         except Exception as exc:

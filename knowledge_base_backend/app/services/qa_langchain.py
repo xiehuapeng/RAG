@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from dataclasses import dataclass, field
 from typing import Any, Iterator
@@ -11,6 +12,14 @@ from langchain_core.runnables import RunnableSerializable
 
 from app.config import QA_HISTORY_LIMIT, QA_MAX_CONTEXT_CHARS
 from app.services.langchain_runtime import get_chat_llm
+
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+
+def _to_json(data: object) -> str:
+    return json.dumps(data, ensure_ascii=False, default=str)
 
 
 @dataclass(slots=True)
@@ -129,6 +138,12 @@ def build_evidence_context(
     2. 控制上下文长度预算。
     3. 产出可以直接返给前端的结构化引用数据。
     """
+    logger.info(
+        "[qa.build_evidence_context.request] max_chars=%s retrieved_count=%s retrieval_results=%s",
+        max_chars,
+        len(retrieval_results),
+        _to_json(retrieval_results),
+    )
 
     blocks: list[str] = []
     evidence: list[dict[str, Any]] = []
@@ -157,8 +172,21 @@ def build_evidence_context(
         total = next_total
 
     if not blocks:
+        logger.info(
+            "[qa.build_evidence_context.response] context_chars=0 evidence_count=0 evidence_context=%s evidence_items=%s",
+            "",
+            "[]",
+        )
         return "", []
-    return "\n\n".join(blocks), evidence
+    evidence_context = "\n\n".join(blocks)
+    logger.info(
+        "[qa.build_evidence_context.response] context_chars=%s evidence_count=%s evidence_context=%s evidence_items=%s",
+        len(evidence_context),
+        len(evidence),
+        evidence_context,
+        _to_json(evidence),
+    )
+    return evidence_context, evidence
 
 
 def build_history_block(recent_messages: list[dict[str, Any]]) -> str:
@@ -238,6 +266,33 @@ def build_answer_chain() -> RunnableSerializable[dict[str, Any], str]:
     return prompt | llm | parser
 
 
+def _build_answer_chain_inputs(
+    *,
+    question: str,
+    analysis: SemanticAnalysis,
+    memory_summary: str,
+    recent_messages: list[dict[str, Any]],
+    evidence_context: str,
+) -> dict[str, str]:
+    return {
+        "question": question,
+        "intent": analysis.intent,
+        "is_follow_up": str(analysis.is_follow_up).lower(),
+        "rewrite_query": analysis.rewrite_query or question,
+        "entities": ", ".join(analysis.entities) if analysis.entities else "(none)",
+        "memory_summary": memory_summary or "(empty)",
+        "recent_history": build_history_block(recent_messages),
+        "evidence_context": evidence_context or "(no evidence)",
+    }
+
+
+def _render_prompt_messages(prompt: ChatPromptTemplate, inputs: dict[str, str]) -> list[dict[str, str]]:
+    return [
+        {"role": message.type, "content": str(message.content)}
+        for message in prompt.format_messages(**inputs)
+    ]
+
+
 def invoke_answer_chain(
     *,
     question: str,
@@ -246,19 +301,25 @@ def invoke_answer_chain(
     recent_messages: list[dict[str, Any]],
     evidence_context: str,
 ) -> str:
-    chain = build_answer_chain()
-    return chain.invoke(
-        {
-            "question": question,
-            "intent": analysis.intent,
-            "is_follow_up": str(analysis.is_follow_up).lower(),
-            "rewrite_query": analysis.rewrite_query or question,
-            "entities": ", ".join(analysis.entities) if analysis.entities else "(none)",
-            "memory_summary": memory_summary or "(empty)",
-            "recent_history": build_history_block(recent_messages),
-            "evidence_context": evidence_context or "(no evidence)",
-        }
+    inputs = _build_answer_chain_inputs(
+        question=question,
+        analysis=analysis,
+        memory_summary=memory_summary,
+        recent_messages=recent_messages,
+        evidence_context=evidence_context,
     )
+    prompt = _build_answer_prompt()
+    prompt_messages = _render_prompt_messages(prompt, inputs)
+    logger.info(
+        "[qa.llm.request] mode=invoke chain_inputs=%s prompt_messages=%s",
+        _to_json(inputs),
+        _to_json(prompt_messages),
+    )
+
+    chain = prompt | get_chat_llm() | StrOutputParser()
+    output = chain.invoke(inputs)
+    logger.info("[qa.llm.response] mode=invoke output=%s", output)
+    return output
 
 
 def stream_answer_chain(
@@ -271,18 +332,40 @@ def stream_answer_chain(
 ) -> Iterator[str]:
     """流式执行同一条 LangChain Runnable 链。"""
 
-    chain = build_answer_chain()
-    yield from chain.stream(
-        {
-            "question": question,
-            "intent": analysis.intent,
-            "is_follow_up": str(analysis.is_follow_up).lower(),
-            "rewrite_query": analysis.rewrite_query or question,
-            "entities": ", ".join(analysis.entities) if analysis.entities else "(none)",
-            "memory_summary": memory_summary or "(empty)",
-            "recent_history": build_history_block(recent_messages),
-            "evidence_context": evidence_context or "(no evidence)",
-        }
+    inputs = _build_answer_chain_inputs(
+        question=question,
+        analysis=analysis,
+        memory_summary=memory_summary,
+        recent_messages=recent_messages,
+        evidence_context=evidence_context,
+    )
+    prompt = _build_answer_prompt()
+    prompt_messages = _render_prompt_messages(prompt, inputs)
+    logger.info(
+        "[qa.llm.request] mode=stream chain_inputs=%s prompt_messages=%s",
+        _to_json(inputs),
+        _to_json(prompt_messages),
+    )
+
+    chain = prompt | get_chat_llm() | StrOutputParser()
+    chunks: list[str] = []
+    try:
+        for chunk in chain.stream(inputs):
+            if chunk:
+                chunks.append(str(chunk))
+            yield chunk
+    except Exception:
+        logger.exception(
+            "[qa.llm.response] mode=stream status=error chunk_count=%s partial_output=%s",
+            len(chunks),
+            "".join(chunks),
+        )
+        raise
+
+    logger.info(
+        "[qa.llm.response] mode=stream status=ok chunk_count=%s output=%s",
+        len(chunks),
+        "".join(chunks),
     )
 
 
