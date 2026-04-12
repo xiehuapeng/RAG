@@ -29,6 +29,15 @@ def _to_json(data: object) -> str:
     return json.dumps(data, ensure_ascii=False, default=str)
 
 
+def _load_chunk_metadata(chunk: Chunk) -> dict:
+    if not chunk.metadata_json:
+        return {}
+    try:
+        return json.loads(chunk.metadata_json)
+    except json.JSONDecodeError:
+        return {}
+
+
 def _distance_to_score(distance: float | int | None) -> float:
     """把 LangChain Chroma 返回的距离值转换成越大越相关的得分。"""
 
@@ -224,6 +233,7 @@ def _rerank_candidates(candidates: list[dict]) -> list[dict]:
 
     for candidate in candidates:
         chunk = candidate["chunk"]
+        metadata = _load_chunk_metadata(chunk)
         features = candidate["features"]
         keyword_score = candidate["keyword_score"]
         vector_score = candidate["vector_score"]
@@ -244,6 +254,9 @@ def _rerank_candidates(candidates: list[dict]) -> list[dict]:
                 "chunk_id": chunk.id,
                 "document_id": chunk.document_id,
                 "document_title": chunk.document.title,
+                "chunk_index": chunk.chunk_index,
+                "section_title": metadata.get("section_title"),
+                "chapter_path": metadata.get("chapter_path"),
                 "content": candidate["content"] or chunk.content,
                 "score": round(min(final_score, 1.0), 4),
                 "keyword_score": round(keyword_score, 4),
@@ -303,6 +316,7 @@ def retrieve(db: Session, session_id: int | None, query: str, top_k: int = RETRI
             "chunk_id": candidate["chunk"].id,
             "document_id": candidate["chunk"].document_id,
             "document_title": candidate["chunk"].document.title,
+            "chunk_index": candidate["chunk"].chunk_index,
             "keyword_score": round(candidate["keyword_score"], 4),
             "vector_score": round(candidate["vector_score"], 4),
             "channels": sorted(candidate["channels"]),

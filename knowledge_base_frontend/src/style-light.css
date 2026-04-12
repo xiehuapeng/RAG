@@ -62,6 +62,14 @@ body::before {
   color: #1c2f46;
 }
 
+.reference-title-button {
+  color: inherit;
+}
+
+.reference-title-button:hover {
+  color: #2457d6;
+}
+
 .brand-copy,
 .page-subtitle,
 .topbar-kicker,
@@ -79,6 +87,14 @@ body::before {
 .el-timeline-item__content,
 .el-timeline-item__timestamp {
   color: var(--kb-muted);
+}
+
+.reference-detail-label {
+  color: var(--kb-muted);
+}
+
+.reference-detail-value {
+  color: #1c2f46;
 }
 
 .sidebar-menu .el-menu-item {

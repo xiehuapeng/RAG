@@ -24,6 +24,8 @@ const dragStartX = ref(0)
 const dragStartY = ref(0)
 const dragMoved = ref(false)
 const streamingStatus = ref('')
+const referenceDetailVisible = ref(false)
+const activeReference = ref(null)
 
 let streamRenderTimer = null
 let streamRenderQueue = ''
@@ -214,6 +216,49 @@ function renderMessageHtml(message) {
   return html.join('')
 }
 
+function getReferenceCardTitle(item, index) {
+  return item?.document_title || item?.title || `来源 ${index + 1}`
+}
+
+function getReferenceSourceTitle(item, index) {
+  return item?.section_title || item?.chapter_path || item?.title || `知识单元 ${getReferenceUnitNumber(item, index)}`
+}
+
+function getReferenceUnitNumber(item, index) {
+  const chunkIndex = Number(item?.chunk_index)
+  if (Number.isInteger(chunkIndex) && chunkIndex >= 0) {
+    return chunkIndex + 1
+  }
+
+  const evidenceId = Number(item?.evidence_id)
+  if (Number.isInteger(evidenceId) && evidenceId > 0) {
+    return evidenceId
+  }
+
+  return index + 1
+}
+
+function getReferenceSnippet(item) {
+  return item?.snippet || item?.content || item?.full_content || JSON.stringify(item)
+}
+
+function getReferenceContent(item) {
+  return item?.full_content || item?.content || item?.snippet || '暂无正文内容'
+}
+
+function closeReferenceDetail() {
+  referenceDetailVisible.value = false
+  activeReference.value = null
+}
+
+function openReferenceDetail(item, index) {
+  activeReference.value = {
+    ...item,
+    __display_index: index,
+  }
+  referenceDetailVisible.value = true
+}
+
 function createPendingAssistantMessage() {
   return {
     id: `local-assistant-${Date.now()}`,
@@ -246,6 +291,7 @@ async function loadSessions(selectLatest = true) {
     sessionTitle.value = ''
     messages.value = []
     references.value = []
+    closeReferenceDetail()
   }
   if (selectLatest && data.length) {
     await selectSession(data[0].id)
@@ -273,6 +319,7 @@ async function selectSession(id) {
     }))
     const lastAssistant = [...detail.messages].reverse().find((item) => item.role === 'assistant')
     references.value = lastAssistant?.references || []
+    closeReferenceDetail()
     suggestedQuestions.value = []
     scrollChatToBottom()
   } finally {
@@ -298,6 +345,7 @@ async function deleteSession(item) {
     sessionTitle.value = ''
     messages.value = []
     references.value = []
+    closeReferenceDetail()
   }
   swipedSessionId.value = null
   await loadSessions(false)
@@ -370,6 +418,7 @@ async function sendMessage(content = draft.value) {
   streamingStatus.value = '正在检索知识库'
   suggestedQuestions.value = []
   references.value = []
+  closeReferenceDetail()
   messages.value.push({
     id: `local-user-${Date.now()}`,
     role: 'user',
@@ -615,15 +664,19 @@ onMounted(async () => {
               <div class="reference-list">
                 <article v-for="(item, index) in references" :key="index" class="reference-item">
                   <div class="reference-item-head">
-                    <div class="reference-item-title">
-                      {{ item.document_title || item.title || `来源 ${index + 1}` }}
-                    </div>
+                    <button
+                      type="button"
+                      class="reference-item-title reference-title-button"
+                      @click="openReferenceDetail(item, index)"
+                    >
+                      {{ getReferenceCardTitle(item, index) }}
+                    </button>
                     <el-tag size="small" effect="dark" class="source-tag-with-icon">
                       <el-icon><CollectionTag /></el-icon>
                       <span>Source {{ index + 1 }}</span>
                     </el-tag>
                   </div>
-                  <p class="reference-item-snippet">{{ item.content || item.snippet || JSON.stringify(item) }}</p>
+                  <p class="reference-item-snippet">{{ getReferenceSnippet(item) }}</p>
                 </article>
               </div>
             </el-scrollbar>
@@ -661,5 +714,57 @@ onMounted(async () => {
         </el-card>
       </div>
     </div>
+
+    <el-dialog
+      v-model="referenceDetailVisible"
+      title="知识单元详情"
+      width="760px"
+      destroy-on-close
+      @closed="closeReferenceDetail"
+    >
+      <div v-if="activeReference" class="reference-detail-stack">
+        <div class="preview-block">
+          <div class="preview-block-head">
+            <span>来源信息</span>
+            <el-tag size="small" type="primary" effect="light">
+              知识单元 {{ getReferenceUnitNumber(activeReference, activeReference.__display_index || 0) }}
+            </el-tag>
+          </div>
+          <div class="reference-detail-meta">
+            <div class="reference-detail-field">
+              <span class="reference-detail-label">来源文档</span>
+              <p class="reference-detail-value">
+                {{ activeReference.document_title || '未提供来源文档' }}
+              </p>
+            </div>
+            <div class="reference-detail-field">
+              <span class="reference-detail-label">来源标题</span>
+              <p class="reference-detail-value">
+                {{ getReferenceSourceTitle(activeReference, activeReference.__display_index || 0) }}
+              </p>
+            </div>
+            <div class="reference-detail-field">
+              <span class="reference-detail-label">章节路径</span>
+              <p class="reference-detail-value">
+                {{ activeReference.chapter_path || '未提供章节路径' }}
+              </p>
+            </div>
+            <div class="reference-detail-field">
+              <span class="reference-detail-label">检索得分</span>
+              <p class="reference-detail-value">
+                {{ activeReference.score ?? '未提供' }}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="preview-block">
+          <div class="preview-block-head">
+            <span>正文内容</span>
+          </div>
+          <p class="preview-text reference-detail-content">{{ getReferenceContent(activeReference) }}</p>
+        </div>
+      </div>
+    </el-dialog>
   </section>
 </template>
