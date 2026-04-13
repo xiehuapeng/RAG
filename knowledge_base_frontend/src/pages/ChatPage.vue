@@ -1,7 +1,18 @@
 ﻿<script setup>
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ChatDotRound, CollectionTag, Delete, Link, Loading, Plus, Promotion } from '@element-plus/icons-vue'
+import {
+  ChatDotRound,
+  CollectionTag,
+  Compass,
+  Delete,
+  Histogram,
+  Link,
+  Loading,
+  MagicStick,
+  Plus,
+  Promotion,
+} from '@element-plus/icons-vue'
 import { chatApi } from '../api/service'
 import { formatDateTime } from '../utils/datetime'
 
@@ -36,6 +47,39 @@ const MIN_SWIPE_DISTANCE = 18
 
 const sessionScrollbarHeight = computed(() => `${sidePanelHeight.value}px`)
 const referenceScrollbarHeight = computed(() => `${sidePanelHeight.value}px`)
+const sessionCountLabel = computed(() => `${sessions.value.length} 个会话`)
+const messageCountLabel = computed(() => `${messages.value.length} 条消息`)
+const activeQuestionPreview = computed(() => {
+  const lastUserMessage = [...messages.value].reverse().find((item) => item.role === 'user')
+  return lastUserMessage?.content || '等待新的问题输入'
+})
+const referenceAverageScore = computed(() => {
+  if (!references.value.length) {
+    return '0.00'
+  }
+  const total = references.value.reduce((sum, item) => sum + Number(item?.score || 0), 0)
+  return (total / references.value.length).toFixed(2)
+})
+const heroSignalCards = computed(() => [
+  {
+    title: '会话网格',
+    value: sessions.value.length || 0,
+    note: '个活跃会话',
+    icon: Compass,
+  },
+  {
+    title: '证据密度',
+    value: references.value.length || 0,
+    note: '条关联来源',
+    icon: Link,
+  },
+  {
+    title: '追问动能',
+    value: suggestedQuestions.value.length || 0,
+    note: '个可用追问',
+    icon: MagicStick,
+  },
+])
 
 function getPointerX(event) {
   return event?.touches?.[0]?.clientX ?? event?.changedTouches?.[0]?.clientX ?? event?.clientX ?? 0
@@ -244,6 +288,12 @@ function getReferenceSnippet(item) {
 
 function getReferenceContent(item) {
   return item?.full_content || item?.content || item?.snippet || '暂无正文内容'
+}
+
+function getReferenceScoreWidth(item) {
+  const score = Number(item?.score || 0)
+  const width = Math.max(12, Math.min(100, Math.round(score * 100)))
+  return `${width}%`
 }
 
 function closeReferenceDetail() {
@@ -502,19 +552,43 @@ onMounted(async () => {
 
 <template>
   <section class="chat-shell section-stack">
-    <header class="chat-hero">
-      <div>
+    <header class="chat-hero chat-hero-poster">
+      <div class="chat-hero-copy-block">
+        <div class="soft-tag poster-kicker">
+          <el-icon><Histogram /></el-icon>
+          <span>问答信号甲板</span>
+        </div>
+        <h2 class="chat-hero-title">把每一次提问都变成一张会发光的情报卡，而不是一段孤立文本。</h2>
         <p class="chat-hero-copy">
-          支持历史会话、流式生成、引用来源和追问建议。答案、证据和操作分层呈现，便于快速判断。
+          支持历史会话、流式生成、引用来源和追问建议。答案、证据和推荐动作被排成可浏览、可回看的互动舞台。
         </p>
+
+        <div class="chat-hero-actions">
+          <div class="chat-hero-chip">
+            <span class="status-dot"></span>
+            {{ sending ? '回答生成中' : '检索在线' }}
+          </div>
+          <div class="chat-hero-chip">平均证据分 {{ referenceAverageScore }}</div>
+          <el-button type="primary" :icon="Plus" @click="createSession">新建会话</el-button>
+        </div>
       </div>
 
-      <div class="chat-hero-actions">
-        <div class="chat-hero-chip">
-          <span class="status-dot"></span>
-          {{ sending ? '回答生成中' : '检索在线' }}
+      <div class="chat-hero-stage">
+        <div class="chat-hero-stage-glow"></div>
+        <div class="chat-stage-headline">
+          <span>最新问题</span>
+          <strong>{{ activeQuestionPreview }}</strong>
         </div>
-        <el-button type="primary" :icon="Plus" @click="createSession">新建会话</el-button>
+        <div class="chat-stage-signal-grid">
+          <article v-for="item in heroSignalCards" :key="item.title" class="chat-stage-card">
+            <el-icon class="chat-stage-card-icon">
+              <component :is="item.icon" />
+            </el-icon>
+            <span>{{ item.title }}</span>
+            <strong>{{ item.value }}</strong>
+            <small>{{ item.note }}</small>
+          </article>
+        </div>
       </div>
     </header>
 
@@ -529,6 +603,7 @@ onMounted(async () => {
               </div>
               <div class="chat-panel-meta">支持滑动删除与快速切换</div>
             </div>
+            <div class="chat-panel-meta">{{ sessionCountLabel }}</div>
           </div>
         </template>
 
@@ -569,7 +644,7 @@ onMounted(async () => {
           <div class="chat-panel-header">
             <div>
               <div class="chat-panel-title">{{ sessionTitle || '对话区' }}</div>
-              <div class="chat-panel-meta">{{ messages.length }} 条消息</div>
+              <div class="chat-panel-meta">{{ messageCountLabel }}</div>
             </div>
             <div class="chat-panel-meta">{{ sending ? '正在生成答案' : '等待提问' }}</div>
           </div>
@@ -584,6 +659,15 @@ onMounted(async () => {
           </div>
 
           <el-scrollbar ref="chatBodyRef" max-height="540px" v-loading="loading">
+            <div v-if="!messages.length" class="chat-empty-poster">
+              <div class="chat-empty-orb"></div>
+              <div class="chat-empty-copy">
+                <span class="soft-tag">Start Scene</span>
+                <h3>从一个业务问题开始，把它变成带证据的答案海报。</h3>
+                <p>你可以直接问开户流程、业务规则、文档操作路径，右侧会同步展示引用来源与后续追问建议。</p>
+              </div>
+            </div>
+
             <div class="section-stack">
               <div
                 v-for="message in messages"
@@ -676,7 +760,14 @@ onMounted(async () => {
                       <span>Source {{ index + 1 }}</span>
                     </el-tag>
                   </div>
+                  <div class="reference-score-track">
+                    <span class="reference-score-fill" :style="{ width: getReferenceScoreWidth(item) }"></span>
+                  </div>
                   <p class="reference-item-snippet">{{ getReferenceSnippet(item) }}</p>
+                  <div class="reference-meta-row">
+                    <span>Score {{ Number(item?.score || 0).toFixed(2) }}</span>
+                    <span>{{ item?.section_title || item?.chapter_path || '未标注章节' }}</span>
+                  </div>
                 </article>
               </div>
             </el-scrollbar>

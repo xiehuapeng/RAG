@@ -2,6 +2,51 @@ import http, { API_BASE_URL, post } from './http'
 
 export const MAX_UPLOAD_SIZE = 200 * 1024 * 1024
 
+function pickReadableQuestion(value) {
+  if (typeof value !== 'string') {
+    return value
+  }
+
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return ''
+  }
+
+  if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) {
+    return trimmed
+  }
+
+  try {
+    const parsed = JSON.parse(trimmed)
+    if (Array.isArray(parsed)) {
+      return parsed.find((item) => typeof item === 'string' && item.trim()) || trimmed
+    }
+
+    if (parsed && typeof parsed === 'object') {
+      const candidate = [parsed.raw_query, parsed.rewrite_query, parsed.question, parsed.query].find(
+        (item) => typeof item === 'string' && item.trim()
+      )
+      return candidate || trimmed
+    }
+  } catch {
+    return trimmed
+  }
+
+  return trimmed
+}
+
+function normalizeQuestionPayload(item) {
+  if (!item || typeof item !== 'object') {
+    return item
+  }
+
+  return {
+    ...item,
+    query: pickReadableQuestion(item.query),
+    question: pickReadableQuestion(item.question),
+  }
+}
+
 function mapChatErrorMessage(code, fallbackMessage = '') {
   // 后端在流式问答里通常会返回结构化错误码。
   // 这里把错误码映射成更适合给用户看的中文提示，避免直接暴露内部实现细节。
@@ -217,10 +262,14 @@ export const dashboardApi = {
     return post('/api/dashboard/stats')
   },
   topQuestions() {
-    return post('/api/dashboard/top-questions')
+    return post('/api/dashboard/top-questions').then((items) =>
+      Array.isArray(items) ? items.map(normalizeQuestionPayload) : []
+    )
   },
   noAnswer() {
-    return post('/api/dashboard/no-answer')
+    return post('/api/dashboard/no-answer').then((items) =>
+      Array.isArray(items) ? items.map(normalizeQuestionPayload) : []
+    )
   },
   feedback() {
     return post('/api/dashboard/feedback')
@@ -232,7 +281,9 @@ export const dashboardApi = {
     return post('/api/dashboard/upload-trend', { days })
   },
   recentFeedback() {
-    return post('/api/dashboard/recent-feedback')
+    return post('/api/dashboard/recent-feedback').then((items) =>
+      Array.isArray(items) ? items.map(normalizeQuestionPayload) : []
+    )
   },
 }
 

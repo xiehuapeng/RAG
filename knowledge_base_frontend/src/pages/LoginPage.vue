@@ -44,9 +44,10 @@ async function handleLogin() {
   <div class="login-shell">
     <section class="login-brand-panel">
       <div class="login-brand-content">
+        <div class="soft-tag poster-kicker">知识海洋入口</div>
         <h1 class="login-title">数智化运营知识库</h1>
         <p class="login-copy">
-          面向文档治理、混合检索、智能问答和运营分析的一体化后台。
+          面向文档治理、混合检索、智能问答和运营分析的一体化后台，把后台系统做成更像控制台海报的体验。
         </p>
         <div class="login-highlight-grid">
           <div class="metric-card">
@@ -54,21 +55,21 @@ async function handleLogin() {
               <el-icon><Upload /></el-icon>
               <span>文档治理</span>
             </div>
-            <div class="metric-value" style="font-size: 22px">Upload</div>
+            <div class="metric-value" style="font-size: 22px">上传</div>
           </div>
           <div class="metric-card">
             <div class="metric-label metric-label-with-icon">
               <el-icon><ChatLineRound /></el-icon>
               <span>混合检索</span>
             </div>
-            <div class="metric-value" style="font-size: 22px">Search</div>
+            <div class="metric-value" style="font-size: 22px">检索</div>
           </div>
           <div class="metric-card">
             <div class="metric-label metric-label-with-icon">
               <el-icon><DataAnalysis /></el-icon>
               <span>运营分析</span>
             </div>
-            <div class="metric-value" style="font-size: 22px">Insight</div>
+            <div class="metric-value" style="font-size: 22px">洞察</div>
           </div>
         </div>
       </div>
