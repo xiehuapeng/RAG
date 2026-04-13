@@ -46,3 +46,19 @@ class ModelConfigPayload(BaseModel):
     model_name: str
     config: dict = Field(default_factory=dict)
     is_active: bool = True
+
+
+class QueryUnderstandingResult(BaseModel):
+    route: str = "out_of_scope"
+    confidence: float = 0.0
+    is_follow_up: bool = False
+    need_context: bool = False
+    raw_query: str
+    rewrite_query: str = ""
+    keywords_hit: list[str] = Field(default_factory=list)
+    entities: list[str] = Field(default_factory=list)
+    filters: dict = Field(default_factory=dict)
+    reason: str = ""
+    provider: str = "rules"
+    model: str = "rules"
+    fallback_used: bool = False

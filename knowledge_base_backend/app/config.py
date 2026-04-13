@@ -92,6 +92,30 @@ MINIMAX_MODEL_NAME = _get_env("MINIMAX_MODEL_NAME", "MiniMax-M2.5", prefer_env_f
 MINIMAX_TEMPERATURE = float(_get_env("MINIMAX_TEMPERATURE", "0.2", prefer_env_file=True))
 MINIMAX_MAX_OUTPUT_TOKENS = int(_get_env("MINIMAX_MAX_OUTPUT_TOKENS", "2048", prefer_env_file=True))
 MINIMAX_REASONING_SPLIT = _get_env("MINIMAX_REASONING_SPLIT", "false", prefer_env_file=True).lower() not in {"0", "false", "no"}
+OLLAMA_BASE_URL = _get_env("OLLAMA_BASE_URL", "http://127.0.0.1:11434", prefer_env_file=True)
+QUERY_UNDERSTANDING_ENABLED = _get_env("QUERY_UNDERSTANDING_ENABLED", "true", prefer_env_file=True).lower() not in {
+    "0",
+    "false",
+    "no",
+}
+QUERY_UNDERSTANDING_PROVIDER = _get_env("QUERY_UNDERSTANDING_PROVIDER", "ollama", prefer_env_file=True).strip().lower()
+QUERY_UNDERSTANDING_MODEL = _get_env("QUERY_UNDERSTANDING_MODEL", "gemma4 e4b", prefer_env_file=True).strip()
+QUERY_UNDERSTANDING_FALLBACK_PROVIDER = _get_env(
+    "QUERY_UNDERSTANDING_FALLBACK_PROVIDER",
+    "minimax",
+    prefer_env_file=True,
+).strip().lower()
+QUERY_UNDERSTANDING_FALLBACK_MODEL = _get_env(
+    "QUERY_UNDERSTANDING_FALLBACK_MODEL",
+    MINIMAX_MODEL_NAME,
+    prefer_env_file=True,
+).strip()
+FOLLOW_UP_ENABLED = _get_env("FOLLOW_UP_ENABLED", "true", prefer_env_file=True).lower() not in {"0", "false", "no"}
+FOLLOW_UP_MAX_TURNS = int(_get_env("FOLLOW_UP_MAX_TURNS", "4", prefer_env_file=True))
+SEMANTIC_CONFIDENCE_THRESHOLD = float(_get_env("SEMANTIC_CONFIDENCE_THRESHOLD", "0.6", prefer_env_file=True))
+QUERY_UNDERSTANDING_TIMEOUT_SECONDS = float(
+    _get_env("QUERY_UNDERSTANDING_TIMEOUT_SECONDS", "20", prefer_env_file=True)
+)
 
 # 上传格式白名单。即便前端做了校验，服务端仍然需要兜底检查。
 SUPPORTED_EXTENSIONS = {

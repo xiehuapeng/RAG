@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import DateTime, ForeignKey, Integer, Text, UniqueConstraint
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base, utcnow
@@ -101,6 +101,28 @@ class RetrievalLog(Base):
     query: Mapped[str] = mapped_column(Text, nullable=False)
     retrieved_chunks: Mapped[str | None] = mapped_column(Text, nullable=True)
     reranked_chunks: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[DateTime] = mapped_column(DateTime, default=utcnow, nullable=False)
+
+
+class QueryUnderstandingLog(Base):
+    __tablename__ = "qa_query_understanding_log"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    session_id: Mapped[int | None] = mapped_column(ForeignKey("qa_session.id"), nullable=True, index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("sys_user.id"), nullable=True, index=True)
+    raw_query: Mapped[str] = mapped_column(Text, nullable=False)
+    rewrite_query: Mapped[str | None] = mapped_column(Text, nullable=True)
+    route: Mapped[str] = mapped_column(Text, nullable=False)
+    confidence: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    is_follow_up: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    need_context: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    keywords_hit_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    entities_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    filters_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    provider: Mapped[str | None] = mapped_column(Text, nullable=True)
+    model: Mapped[str | None] = mapped_column(Text, nullable=True)
+    fallback_used: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     created_at: Mapped[DateTime] = mapped_column(DateTime, default=utcnow, nullable=False)
 
 

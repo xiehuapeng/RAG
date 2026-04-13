@@ -1,25 +1,21 @@
 from __future__ import annotations
-import logging
-import traceback
-# 用于保存 references_json 和 summary_json。
+
 import json
+import logging
 import re
-# Any 用于宽松类型标注，例如流式 chunk 和 SSE payload。
+import traceback
 from typing import Any
 
-# FastAPI 的流式响应对象。
+import httpx
 from fastapi.responses import StreamingResponse
 from openai import AuthenticationError as OpenAIAuthenticationError
-# SQLAlchemy 会话对象。
+from openai import OpenAIError
 from sqlalchemy.orm import Session
 
-# 问答检索条数配置。
 from app.config import QA_RETRIEVE_TOP_K
-# 聊天相关数据模型。
-from app.models import ChatSession, Feedback, Message, RetrievalLog
-# MiniMax 客户端封装与配置异常。
+from app.models import ChatSession, Feedback, Message, QueryUnderstandingLog, RetrievalLog
+from app.schemas import QueryUnderstandingResult
 from app.services.minimax import MinimaxConfigError
-# 问答编排层函数。
 from app.services.qa_langchain import (
     SemanticAnalysis,
     build_evidence_context,
@@ -32,35 +28,35 @@ from app.services.qa_langchain import (
     parse_session_summary,
     stream_answer_chain,
 )
-# 混合检索主入口。
-from app.services.retrieval_langchain import retrieve
+from app.services.query_understanding import get_query_understanding_service
+from app.services.retrieval_langchain import retrieve, retrieve_with_understanding
 
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-
-def _to_json(data: object) -> str:
-    return json.dumps(data, ensure_ascii=False, default=str)
-
-
-# 当知识库没有找到足够可靠的证据时，返回的兜底回答。
 NO_ANSWER_TEXT = (
     "当前知识库里没有找到足够可靠的内容来回答这个问题。"
     "你可以换一种问法，或者补充更具体的场景、设备、流程或文档名称。"
+)
+OUT_OF_SCOPE_TEXT = (
+    "这个问题看起来不在当前知识库覆盖范围内。"
+    "目前系统主要回答企业业务、开户、计费、物联网卡、CMIOT、群组、成员、缴费等知识库资料相关问题。"
 )
 
 THINK_OPEN = "<think>"
 THINK_CLOSE = "</think>"
 
 
-# 聊天服务主流程集中在这个文件：
-# - 管理会话生命周期
-# - 调用检索与问答链
-# - 生成普通回答或 SSE 流式回答
-# - 在模型异常时提供兜底回复
+def _serialize_model(model: QueryUnderstandingResult | None) -> dict[str, Any]:
+    if model is None:
+        return {}
+    if hasattr(model, "model_dump"):
+        return model.model_dump()
+    return model.dict()
+
+
 def _friendly_stream_error(exc: Exception) -> tuple[str, str]:
-    # 将内部异常映射为前端可识别的错误码和用户可读提示。
     message = str(exc).lower()
     if isinstance(exc, OpenAIAuthenticationError):
         return "config_error", "模型服务鉴权失败，请检查 API Key、Base URL 或模型配置。"
@@ -84,36 +80,93 @@ def _friendly_stream_error(exc: Exception) -> tuple[str, str]:
     return "chat_failed", "本次回答生成失败，请稍后重试。"
 
 
+def _default_query_understanding(content: str) -> QueryUnderstandingResult:
+    query = (content or "").strip()
+    return QueryUnderstandingResult(
+        route="kb_qa",
+        confidence=0.2,
+        is_follow_up=False,
+        need_context=False,
+        raw_query=query,
+        rewrite_query=query,
+        keywords_hit=[],
+        entities=[],
+        filters={},
+        reason="default_direct_query",
+        provider="rules",
+        model="rules",
+        fallback_used=False,
+    )
+
+
+def _analysis_from_understanding(result: QueryUnderstandingResult) -> SemanticAnalysis:
+    return SemanticAnalysis(
+        intent="qa" if result.route == "kb_qa" else "out_of_scope",
+        route=result.route,
+        raw_query=result.raw_query,
+        is_follow_up=result.is_follow_up,
+        rewrite_query=result.rewrite_query or result.raw_query,
+        keywords_hit=result.keywords_hit,
+        entities=result.entities,
+        filters=result.filters,
+        needs_retrieval=result.route == "kb_qa",
+        risk_level="medium",
+        reason=result.reason,
+        confidence=result.confidence,
+    )
+
+
+def _record_query_understanding_log(
+    db: Session,
+    *,
+    session_id: int,
+    user_id: int | None,
+    understanding: QueryUnderstandingResult,
+) -> None:
+    db.add(
+        QueryUnderstandingLog(
+            session_id=session_id,
+            user_id=user_id,
+            raw_query=understanding.raw_query,
+            rewrite_query=understanding.rewrite_query,
+            route=understanding.route,
+            confidence=understanding.confidence,
+            is_follow_up=1 if understanding.is_follow_up else 0,
+            need_context=1 if understanding.need_context else 0,
+            keywords_hit_json=json.dumps(understanding.keywords_hit, ensure_ascii=False),
+            entities_json=json.dumps(understanding.entities, ensure_ascii=False),
+            filters_json=json.dumps(understanding.filters, ensure_ascii=False),
+            reason=understanding.reason,
+            provider=understanding.provider,
+            model=understanding.model,
+            fallback_used=1 if understanding.fallback_used else 0,
+        )
+    )
+    db.commit()
+
+
 def _should_fallback_no_answer(retrieval_results: list[dict]) -> bool:
-    # 没有任何检索结果时，直接兜底。
     if not retrieval_results:
         return True
 
-    # 取第一条结果作为最强证据。
     top = retrieval_results[0]
     top_score = float(top.get("score") or 0.0)
     top_keyword = float(top.get("keyword_score") or 0.0)
     top_vector = float(top.get("vector_score") or 0.0)
-
-    # 前三条里是否存在明显关键词命中。
     has_keyword_hit = any(float(item.get("keyword_score") or 0.0) >= 0.08 for item in retrieval_results[:3])
-    # 前三条里是否存在标题命中。
     has_title_hit = any(bool(item.get("title_hit")) for item in retrieval_results[:3])
 
-    # 综合分太低时，判定为证据不足。
     if top_score < 0.2:
         return True
-    # 标题不命中、关键词不命中、向量分也偏低时，判定为证据不足。
     if not has_keyword_hit and not has_title_hit and top_vector < 0.55:
         return True
-    # 综合分偏低且关键词分也低时，也兜底。
     if top_score < 0.3 and top_keyword < 0.05:
         return True
     return False
 
 
 def build_answer(query: str, retrieval_results: list[dict]) -> tuple[str, list[dict], list[str]]:
-    # 如果证据明显不足，则返回固定兜底文案和通用追问建议。
+    del query
     if _should_fallback_no_answer(retrieval_results):
         return (
             NO_ANSWER_TEXT,
@@ -121,7 +174,6 @@ def build_answer(query: str, retrieval_results: list[dict]) -> tuple[str, list[d
             ["这个问题对应的流程在哪里", "有没有更具体的操作条件", "是否有补充材料或上下文"],
         )
 
-    # 否则选取前三条结果做简要拼接。
     references = retrieval_results[:3]
     title = references[0].get("document_title") or "知识库文档"
     summary_lines = [f"根据知识库检索结果，优先参考《{title}》："]
@@ -134,8 +186,6 @@ def build_answer(query: str, retrieval_results: list[dict]) -> tuple[str, list[d
 
 
 def create_session(db: Session, user_id: int, title: str | None) -> ChatSession:
-    # 创建新的聊天会话，标题为空时使用默认标题。
-    # 创建新的聊天会话。
     session = ChatSession(user_id=user_id, title=title or "新建会话")
     db.add(session)
     db.commit()
@@ -144,29 +194,25 @@ def create_session(db: Session, user_id: int, title: str | None) -> ChatSession:
 
 
 def delete_session(db: Session, session: ChatSession) -> None:
-    # 删除会话时，需要顺带清掉消息、反馈和检索日志，避免留下孤儿数据。
-    # 先找出该会话下所有消息 id，便于删除反馈。
     message_ids = [message_id for (message_id,) in db.query(Message.id).filter(Message.session_id == session.id).all()]
     if message_ids:
         db.query(Feedback).filter(Feedback.message_id.in_(message_ids)).delete(synchronize_session=False)
 
-    # 删除会话相关消息和检索日志。
     db.query(Message).filter(Message.session_id == session.id).delete(synchronize_session=False)
     db.query(RetrievalLog).filter(RetrievalLog.session_id == session.id).delete(synchronize_session=False)
+    db.query(QueryUnderstandingLog).filter(QueryUnderstandingLog.session_id == session.id).delete(
+        synchronize_session=False
+    )
     db.delete(session)
     db.commit()
 
 
-def _build_memory_context(session: ChatSession, recent_messages: list[dict[str, Any]]) -> str:
-    # 先解析会话压缩摘要，再与最近几轮消息拼接成记忆上下文。
-    session_summary = parse_session_summary(session.summary_json)
+def _build_memory_context(session_summary: dict[str, Any], recent_messages: list[dict[str, Any]]) -> str:
     return build_memory_summary(session_summary, recent_messages)
 
 
 def _load_prompt_messages(db: Session, session_id: int, current_content: str) -> list[dict[str, Any]]:
-    # 读取最近消息。
     recent_messages = load_history_messages(db, session_id)
-    # 如果最后一条用户消息就是当前刚保存的问题，则从历史中排除，避免重复喂给模型。
     if recent_messages and recent_messages[-1].get("role") == "user":
         last_content = str(recent_messages[-1].get("content") or "").strip()
         if last_content == current_content.strip():
@@ -174,105 +220,103 @@ def _load_prompt_messages(db: Session, session_id: int, current_content: str) ->
     return recent_messages
 
 
-def _extract_delta_payload(chunk: Any) -> tuple[str, str]:
-    # 从 OpenAI 兼容流式 chunk 中提取可识别的增量内容。
-    # 返回值:
-    # - ("content", 文本): 正常回答正文
-    # - ("reasoning", 文本): 推理内容
-    # - ("", ""): 无有效文本
-    try:
-        choice = chunk.choices[0]
-        delta = choice.delta
-        text = getattr(delta, "content", None)
-        if text:
-            return "content", str(text)
-        reasoning_text = getattr(delta, "reasoning_content", None)
-        if reasoning_text:
-            return "reasoning", str(reasoning_text)
-        reasoning_details = getattr(delta, "reasoning_details", None) or []
-        detail_parts: list[str] = []
-        for item in reasoning_details:
-            if isinstance(item, dict):
-                text = item.get("text")
-            else:
-                text = getattr(item, "text", None)
-            if text:
-                detail_parts.append(str(text))
-        if detail_parts:
-            return "reasoning", "".join(detail_parts)
-    except Exception:
-        return "", ""
-    return "", ""
-
-
 def _strip_hidden_reasoning(text: str) -> str:
-    # 非流式回答里，如果模型把思考内容包在 <think>...</think> 中，这里统一清理掉。
     cleaned = re.sub(r"(?is)<think>.*?</think>", "", text or "")
     cleaned = cleaned.replace(THINK_OPEN, "").replace(THINK_CLOSE, "")
     return cleaned.strip()
 
 
-def _match_tag_prefix_length(text: str, tag: str) -> int:
-    # 判断 text 末尾有多少字符是 tag 前缀。
-    max_len = min(len(text), len(tag) - 1)
-    for size in range(max_len, 0, -1):
-        if text.endswith(tag[:size]):
-            return size
-    return 0
+def _is_model_runtime_error(exc: Exception) -> bool:
+    return isinstance(exc, (MinimaxConfigError, OpenAIError, httpx.HTTPError, TimeoutError))
 
 
-def _consume_visible_stream_text(text: str, state: dict[str, Any]) -> str:
-    # 兼容两类 MiniMax 流式返回形态：
-    # 1. reasoning_content 独立字段
-    # 2. content 中夹带 <think>...</think>
-    # 这里会过滤隐藏推理，只保留用户可见正文。
-    data = f"{state.get('pending_tag', '')}{text}"
-    state["pending_tag"] = ""
-    visible_parts: list[str] = []
-    index = 0
-
-    while index < len(data):
-        if state.get("inside_think", False):
-            close_index = data.find(THINK_CLOSE, index)
-            if close_index == -1:
-                partial = _match_tag_prefix_length(data[index:], THINK_CLOSE)
-                if partial:
-                    state["pending_tag"] = data[-partial:]
-                return "".join(visible_parts)
-            index = close_index + len(THINK_CLOSE)
-            state["inside_think"] = False
-            continue
-
-        open_index = data.find(THINK_OPEN, index)
-        if open_index == -1:
-            remainder = data[index:]
-            partial = _match_tag_prefix_length(remainder, THINK_OPEN)
-            if partial:
-                visible_parts.append(remainder[:-partial])
-                state["pending_tag"] = remainder[-partial:]
-            else:
-                visible_parts.append(remainder)
-            return "".join(visible_parts)
-
-        visible_parts.append(data[index:open_index])
-        index = open_index + len(THINK_OPEN)
-        state["inside_think"] = True
-
-    return "".join(visible_parts)
+def _build_local_fallback_result(
+    *,
+    content: str,
+    retrieval_results: list[dict],
+    analysis: SemanticAnalysis,
+    understanding: QueryUnderstandingResult,
+) -> dict[str, Any]:
+    answer_text, references, suggestions = build_answer(content, retrieval_results)
+    summary_text = extract_answer_summary(answer_text)
+    query_understanding = _serialize_model(understanding)
+    return {
+        "answer": answer_text,
+        "references": references,
+        "suggestions": suggestions,
+        "summary": summary_text,
+        "session_summary": build_session_summary(
+            question=content,
+            analysis=analysis,
+            answer_text=answer_text,
+            retrieval_results=retrieval_results,
+            query_understanding=query_understanding,
+        ),
+        "query_understanding": query_understanding,
+    }
 
 
-def _build_direct_analysis(content: str) -> SemanticAnalysis:
-    # 当前链路已去掉语义理解 LLM。
-    # 这里构造一个默认分析对象，供后续 prompt、摘要和前端展示统一使用。
-    return SemanticAnalysis(
-        intent="qa",
-        is_follow_up=False,
-        rewrite_query=content.strip(),
-        entities=[],
-        needs_retrieval=True,
-        risk_level="medium",
-        memory_summary="",
+def _build_out_of_scope_result(content: str, understanding: QueryUnderstandingResult) -> dict[str, Any]:
+    analysis = _analysis_from_understanding(understanding)
+    answer_text = OUT_OF_SCOPE_TEXT
+    suggestions = ["换一个更具体的业务问题", "补充文档名称、业务名称或办理场景", "改问知识库中的流程或规则"]
+    summary_text = extract_answer_summary(answer_text)
+    query_understanding = _serialize_model(understanding)
+    return {
+        "answer": answer_text,
+        "references": [],
+        "suggestions": suggestions,
+        "summary": summary_text,
+        "session_summary": build_session_summary(
+            question=content,
+            analysis=analysis,
+            answer_text=answer_text,
+            retrieval_results=[],
+            query_understanding=query_understanding,
+        ),
+        "query_understanding": query_understanding,
+    }
+
+
+def _prepare_turn_context(db: Session, session: ChatSession, content: str) -> dict[str, Any]:
+    recent_messages = _load_prompt_messages(db, session.id, content)
+    session_summary = parse_session_summary(session.summary_json)
+    memory_context = _build_memory_context(session_summary, recent_messages)
+
+    understanding_service = get_query_understanding_service()
+    understanding = understanding_service.understand(
+        query=content,
+        history=recent_messages,
+        session_summary=session_summary,
     )
+    _record_query_understanding_log(
+        db,
+        session_id=session.id,
+        user_id=session.user_id,
+        understanding=understanding,
+    )
+
+    analysis = _analysis_from_understanding(understanding)
+    retrieval_results: list[dict] = []
+    evidence_context = ""
+    evidence_items: list[dict[str, Any]] = []
+    retrieval_query = understanding.rewrite_query or understanding.raw_query
+
+    if understanding.route == "kb_qa":
+        retrieval_results = retrieve_with_understanding(db, session.id, understanding, top_k=QA_RETRIEVE_TOP_K)
+        evidence_context, evidence_items = build_evidence_context(retrieval_results)
+
+    return {
+        "recent_messages": recent_messages,
+        "session_summary": session_summary,
+        "memory_context": memory_context,
+        "understanding": understanding,
+        "analysis": analysis,
+        "retrieval_query": retrieval_query,
+        "retrieval_results": retrieval_results,
+        "evidence_context": evidence_context,
+        "evidence_items": evidence_items,
+    }
 
 
 def _answer_with_minimax(
@@ -281,128 +325,101 @@ def _answer_with_minimax(
     session: ChatSession,
     content: str,
 ):
-    # 单次问答主流程：
-    # 1. 加载历史消息和会话摘要
-    # 2. 检索知识库
-    # 3. 组织证据上下文
-    # 4. 调用模型生成答案
-    # 5. 提取追问建议和会话摘要
-    # 读取 prompt 历史消息。
-    recent_messages = _load_prompt_messages(db, session.id, content)
-    # 构造记忆上下文。
-    memory_context = _build_memory_context(session, recent_messages)
+    context = _prepare_turn_context(db, session, content)
+    understanding: QueryUnderstandingResult = context["understanding"]
+    analysis: SemanticAnalysis = context["analysis"]
 
-    # 直接检索方案：不再调用语义理解模型，直接使用用户原问题做检索。
-    analysis: SemanticAnalysis = _build_direct_analysis(content)
-    retrieval_query = content.strip()
+    if understanding.route != "kb_qa":
+        return _build_out_of_scope_result(content, understanding)
 
-    # 执行知识库检索。
-    retrieval_results = retrieve(db, session.id, retrieval_query, top_k=QA_RETRIEVE_TOP_K)
-    # 打包证据文本和结构化引用。
-    evidence_context, evidence_items = build_evidence_context(retrieval_results)
-    # 改造后，这一步通过 LangChain Runnable 链执行：
-    # ChatPromptTemplate -> ChatOpenAI -> StrOutputParser
-    answer_text = invoke_answer_chain(
-        question=content,
-        analysis=analysis,
-        memory_summary=memory_context,
-        recent_messages=recent_messages,
-        evidence_context=evidence_context,
-    )
+    retrieval_results = context["retrieval_results"]
+    evidence_context = context["evidence_context"]
+    evidence_items = context["evidence_items"]
+    memory_context = context["memory_context"]
+    recent_messages = context["recent_messages"]
+
+    try:
+        answer_text = invoke_answer_chain(
+            question=content,
+            analysis=analysis,
+            memory_summary=memory_context,
+            recent_messages=recent_messages,
+            evidence_context=evidence_context,
+        )
+    except Exception as exc:
+        if not _is_model_runtime_error(exc):
+            raise
+        traceback.print_exc()
+        return _build_local_fallback_result(
+            content=content,
+            retrieval_results=retrieval_results,
+            analysis=analysis,
+            understanding=understanding,
+        )
+
     answer_text = _strip_hidden_reasoning(answer_text)
-
-    # 如果模型没返回正文且证据又弱，则使用兜底答案。
     if not answer_text.strip() and _should_fallback_no_answer(retrieval_results):
         answer_text, legacy_references, suggestions = build_answer(content, retrieval_results)
         summary_text = extract_answer_summary(answer_text)
+        query_understanding = _serialize_model(understanding)
         session_summary = build_session_summary(
             question=content,
             analysis=analysis,
             answer_text=answer_text,
             retrieval_results=retrieval_results,
+            query_understanding=query_understanding,
         )
-        result = {
+        return {
             "answer": answer_text,
             "references": legacy_references,
             "suggestions": suggestions,
             "summary": summary_text,
             "session_summary": session_summary,
+            "query_understanding": query_understanding,
         }
-        logger.info(
-            "[qa.answer.final] mode=invoke session_id=%s fallback=true answer=%s references=%s suggestions=%s",
-            session.id,
-            answer_text,
-            _to_json(legacy_references),
-            _to_json(suggestions),
-        )
-        return result
 
-    # 提取追问建议与摘要。
     suggestions = extract_followup_questions(answer_text)
     summary_text = extract_answer_summary(answer_text)
+    query_understanding = _serialize_model(understanding)
     session_summary = build_session_summary(
         question=content,
         analysis=analysis,
         answer_text=answer_text,
         retrieval_results=retrieval_results,
+        query_understanding=query_understanding,
     )
-    result = {
+    return {
         "answer": answer_text,
         "references": evidence_items,
         "suggestions": suggestions,
         "summary": summary_text,
         "session_summary": session_summary,
+        "query_understanding": query_understanding,
     }
-    logger.info(
-        "[qa.answer.final] mode=invoke session_id=%s fallback=false answer=%s references=%s suggestions=%s",
-        session.id,
-        answer_text,
-        _to_json(evidence_items),
-        _to_json(suggestions),
-    )
-    return result
 
 
 def send_message(db: Session, session: ChatSession, content: str) -> tuple[Message, Message, list[str]]:
-    # 非流式发送消息：同步返回完整答案，同时把用户消息和助手消息都落库。
-    # 先落库用户消息，保证即使后续模型失败，对话记录也完整。
     user_message = Message(session_id=session.id, role="user", content=content)
     db.add(user_message)
     db.commit()
     db.refresh(user_message)
 
     try:
-        # 调用完整问答链路。
         result = _answer_with_minimax(db=db, session=session, content=content)
-    except MinimaxConfigError:
+    except Exception as exc:
+        if not _is_model_runtime_error(exc):
+            raise
         traceback.print_exc()
-        # 如果模型配置缺失，则退化为“检索 + 本地拼接兜底回答”。
+        understanding = _default_query_understanding(content)
+        analysis = _analysis_from_understanding(understanding)
         retrieval_results = retrieve(db, session.id, content, top_k=QA_RETRIEVE_TOP_K)
-        answer_text, references, suggestions = build_answer(content, retrieval_results)
-        result = {
-            "answer": answer_text,
-            "references": references,
-            "suggestions": suggestions,
-            "summary": extract_answer_summary(answer_text),
-            "session_summary": {
-                "topic": "qa",
-                "last_user_question": content,
-                "last_answer_summary": extract_answer_summary(answer_text),
-                "key_entities": [],
-                "rewrite_query": content,
-                "retrieved_count": len(retrieval_results),
-                "confidence": 0.2,
-            },
-        }
-        logger.info(
-            "[qa.answer.final] mode=invoke session_id=%s fallback=true reason=minimax_config_error answer=%s references=%s suggestions=%s",
-            session.id,
-            answer_text,
-            _to_json(references),
-            _to_json(suggestions),
+        result = _build_local_fallback_result(
+            content=content,
+            retrieval_results=retrieval_results,
+            analysis=analysis,
+            understanding=understanding,
         )
 
-    # 创建助手消息记录。
     assistant_message = Message(
         session_id=session.id,
         role="assistant",
@@ -411,9 +428,7 @@ def send_message(db: Session, session: ChatSession, content: str) -> tuple[Messa
     )
     db.add(assistant_message)
 
-    # 将本轮问答摘要写回会话。
     session.summary_json = json.dumps(result["session_summary"], ensure_ascii=False)
-    # 若标题仍是默认值，则用当前问题前 20 个字符生成标题。
     if not session.title or session.title == "新建会话":
         session.title = content[:20]
     db.add(session)
@@ -424,59 +439,91 @@ def send_message(db: Session, session: ChatSession, content: str) -> tuple[Messa
 
 
 def stream_message(db: Session, session: ChatSession, content: str) -> StreamingResponse:
-    # 流式发送消息：后端通过 SSE 连续推送状态、证据、增量文本和结束事件。
-    # 流式接口也先落库用户消息。
     user_message = Message(session_id=session.id, role="user", content=content)
     db.add(user_message)
     db.commit()
     db.refresh(user_message)
 
-    # 提前记录基础类型 id，避免流式生成器里直接持有已过期 ORM 对象。
     session_id = session.id
     user_message_id = user_message.id
 
     def event_stream():
-        # 告知前端流式开始。
         yield _sse("start", {"message_id": user_message_id, "session_id": session_id})
         try:
-            # 在生成器内部重新查询会话，避免 DetachedInstanceError。
             session_row = db.query(ChatSession).filter(ChatSession.id == session_id).first()
             if session_row is None:
                 yield _sse("error", {"code": "session_not_found", "message": "当前会话不存在，请刷新后重试。"})
                 return
 
-            # 读取 prompt 历史和记忆上下文。
-            recent_messages = _load_prompt_messages(db, session_id, content)
-            logger.info("finished loading prompt messages for session_id=%s count=%d", session_id, len(recent_messages))
-            memory_context = _build_memory_context(session_row, recent_messages)
-            logger.info("finished building memory context for memory_context=%s", memory_context)
-            # 当前链路不再调用语义理解模型，直接进入检索阶段。
+            context = _prepare_turn_context(db, session_row, content)
+            understanding: QueryUnderstandingResult = context["understanding"]
+            analysis: SemanticAnalysis = context["analysis"]
+            retrieval_results = context["retrieval_results"]
+            evidence_context = context["evidence_context"]
+            evidence_items = context["evidence_items"]
+            recent_messages = context["recent_messages"]
+            memory_context = context["memory_context"]
+
+            yield _sse(
+                "understanding",
+                {
+                    "route": understanding.route,
+                    "confidence": understanding.confidence,
+                    "is_follow_up": understanding.is_follow_up,
+                    "need_context": understanding.need_context,
+                    "raw_query": understanding.raw_query,
+                    "rewrite_query": understanding.rewrite_query,
+                    "keywords_hit": understanding.keywords_hit,
+                    "entities": understanding.entities,
+                },
+            )
+
+            if understanding.route != "kb_qa":
+                result = _build_out_of_scope_result(content, understanding)
+                session_row.summary_json = json.dumps(result["session_summary"], ensure_ascii=False)
+                assistant_message = Message(
+                    session_id=session_id,
+                    role="assistant",
+                    content=result["answer"],
+                    references_json=json.dumps(result["references"], ensure_ascii=False),
+                )
+                db.add(assistant_message)
+                if not session_row.title or session_row.title == "新建会话":
+                    session_row.title = content[:20]
+                db.add(session_row)
+                db.commit()
+                yield _sse("delta", {"content": result["answer"]})
+                yield _sse(
+                    "end",
+                    {
+                        "answer": result["answer"],
+                        "summary": result["summary"],
+                        "suggestions": result["suggestions"],
+                    },
+                )
+                return
+
             yield _sse("status", {"phase": "retrieving", "message": "正在检索知识库"})
-            analysis = _build_direct_analysis(content)
-            retrieval_query = content.strip()
-            retrieval_results = retrieve(db, session_id, retrieval_query, top_k=QA_RETRIEVE_TOP_K)
-            evidence_context, evidence_items = build_evidence_context(retrieval_results)
-            # 将命中的证据先发给前端，便于用户提前看到来源。
             yield _sse(
                 "evidence",
                 {
-                    "query": retrieval_query,
+                    "query": understanding.rewrite_query or understanding.raw_query,
                     "analysis": {
+                        "route": analysis.route,
                         "intent": analysis.intent,
                         "is_follow_up": analysis.is_follow_up,
+                        "keywords_hit": analysis.keywords_hit,
                         "entities": analysis.entities,
-                        "risk_level": analysis.risk_level,
+                        "reason": analysis.reason,
+                        "confidence": analysis.confidence,
                     },
                     "evidence": evidence_items,
                 },
             )
 
-            # 用于收集完整答案，便于结束后落库。
             collected: list[str] = []
             yield _sse("status", {"phase": "generating", "message": "正在整理答案"})
-
             try:
-                # 逐块消费 LangChain Runnable 的流式文本输出，并透传给前端。
                 for text in stream_answer_chain(
                     question=content,
                     analysis=analysis,
@@ -488,69 +535,87 @@ def stream_message(db: Session, session: ChatSession, content: str) -> Streaming
                         continue
                     collected.append(text)
                     yield _sse("delta", {"content": text})
-            except Exception:
-                traceback.print_exc()
-                # 如果模型流式报错，且一个正文块都没拿到，并且证据很弱，则退化为兜底回答。
-                if not collected and _should_fallback_no_answer(retrieval_results):
-                    answer_text, references, suggestions = build_answer(content, retrieval_results)
-                    summary_text = extract_answer_summary(answer_text)
-                    session_row.summary_json = json.dumps(
-                        {
-                            "topic": analysis.intent,
-                            "last_user_question": content,
-                            "last_answer_summary": summary_text,
-                            "key_entities": [],
-                            "rewrite_query": retrieval_query,
-                            "retrieved_count": len(retrieval_results),
-                            "confidence": 0.2,
-                        },
-                        ensure_ascii=False,
+            except Exception as exc:
+                logger.exception("stream answer failed")
+                if _is_model_runtime_error(exc) and not collected:
+                    fallback_result = _build_local_fallback_result(
+                        content=content,
+                        retrieval_results=retrieval_results,
+                        analysis=analysis,
+                        understanding=understanding,
                     )
+                    session_row.summary_json = json.dumps(fallback_result["session_summary"], ensure_ascii=False)
                     assistant_message = Message(
                         session_id=session_id,
                         role="assistant",
-                        content=answer_text,
-                        references_json=json.dumps(references, ensure_ascii=False),
+                        content=fallback_result["answer"],
+                        references_json=json.dumps(fallback_result["references"], ensure_ascii=False),
                     )
                     db.add(assistant_message)
                     if not session_row.title or session_row.title == "新建会话":
                         session_row.title = content[:20]
                     db.add(session_row)
                     db.commit()
-                    logger.info(
-                        "[qa.answer.final] mode=stream session_id=%s fallback=true reason=stream_error answer=%s references=%s suggestions=%s",
-                        session_id,
-                        answer_text,
-                        _to_json(references),
-                        _to_json(suggestions),
+                    yield _sse("delta", {"content": fallback_result["answer"]})
+                    yield _sse(
+                        "end",
+                        {
+                            "answer": fallback_result["answer"],
+                            "summary": fallback_result["summary"],
+                            "suggestions": fallback_result["suggestions"],
+                        },
                     )
-                    yield _sse("delta", {"content": answer_text})
-                    yield _sse("end", {"answer": answer_text, "summary": summary_text, "suggestions": suggestions})
+                    return
+                if not collected and _should_fallback_no_answer(retrieval_results):
+                    fallback_result = _build_local_fallback_result(
+                        content=content,
+                        retrieval_results=retrieval_results,
+                        analysis=analysis,
+                        understanding=understanding,
+                    )
+                    session_row.summary_json = json.dumps(fallback_result["session_summary"], ensure_ascii=False)
+                    assistant_message = Message(
+                        session_id=session_id,
+                        role="assistant",
+                        content=fallback_result["answer"],
+                        references_json=json.dumps(fallback_result["references"], ensure_ascii=False),
+                    )
+                    db.add(assistant_message)
+                    if not session_row.title or session_row.title == "新建会话":
+                        session_row.title = content[:20]
+                    db.add(session_row)
+                    db.commit()
+                    yield _sse("delta", {"content": fallback_result["answer"]})
+                    yield _sse(
+                        "end",
+                        {
+                            "answer": fallback_result["answer"],
+                            "summary": fallback_result["summary"],
+                            "suggestions": fallback_result["suggestions"],
+                        },
+                    )
                     return
                 raise
 
-            # 拼接所有流式文本得到完整答案。
             answer_text = _strip_hidden_reasoning("".join(collected).strip())
-            stream_fallback = False
             if not answer_text and _should_fallback_no_answer(retrieval_results):
                 answer_text, references, suggestions = build_answer(content, retrieval_results)
                 references_payload = references
-                stream_fallback = True
             else:
                 references_payload = evidence_items
                 suggestions = extract_followup_questions(answer_text)
 
-            # 生成摘要并写回会话。
             summary_text = extract_answer_summary(answer_text)
+            query_understanding = _serialize_model(understanding)
             session_summary = build_session_summary(
                 question=content,
                 analysis=analysis,
                 answer_text=answer_text,
                 retrieval_results=retrieval_results,
+                query_understanding=query_understanding,
             )
             session_row.summary_json = json.dumps(session_summary, ensure_ascii=False)
 
-            # 落库助手消息。
             assistant_message = Message(
                 session_id=session_id,
                 role="assistant",
@@ -562,66 +627,12 @@ def stream_message(db: Session, session: ChatSession, content: str) -> Streaming
                 session_row.title = content[:20]
             db.add(session_row)
             db.commit()
-            logger.info(
-                "[qa.answer.final] mode=stream session_id=%s fallback=%s answer=%s references=%s suggestions=%s",
-                session_id,
-                str(stream_fallback).lower(),
-                answer_text,
-                _to_json(references_payload),
-                _to_json(suggestions),
-            )
-
-            # 通知前端流式结束。
-            yield _sse("end", {"answer": answer_text, "summary": summary_text, "suggestions": suggestions})
-        except MinimaxConfigError:
-            traceback.print_exc()
-            # 如果模型配置缺失，则直接退化为本地兜底回答。
-            session_row = db.query(ChatSession).filter(ChatSession.id == session_id).first()
-            retrieval_results = retrieve(db, session_id, content, top_k=QA_RETRIEVE_TOP_K)
-            answer_text, references, suggestions = build_answer(content, retrieval_results)
-            summary_text = extract_answer_summary(answer_text)
-            if session_row is not None:
-                session_row.summary_json = json.dumps(
-                    {
-                        "topic": "qa",
-                        "last_user_question": content,
-                        "last_answer_summary": summary_text,
-                        "key_entities": [],
-                        "rewrite_query": content,
-                        "retrieved_count": len(retrieval_results),
-                        "confidence": 0.2,
-                    },
-                    ensure_ascii=False,
-                )
-            assistant_message = Message(
-                session_id=session_id,
-                role="assistant",
-                content=answer_text,
-                references_json=json.dumps(references, ensure_ascii=False),
-            )
-            db.add(assistant_message)
-            if session_row is not None:
-                if not session_row.title or session_row.title == "新建会话":
-                    session_row.title = content[:20]
-                db.add(session_row)
-            db.commit()
-            logger.info(
-                "[qa.answer.final] mode=stream session_id=%s fallback=true reason=minimax_config_error answer=%s references=%s suggestions=%s",
-                session_id,
-                answer_text,
-                _to_json(references),
-                _to_json(suggestions),
-            )
-            yield _sse("delta", {"content": answer_text})
             yield _sse("end", {"answer": answer_text, "summary": summary_text, "suggestions": suggestions})
         except Exception as exc:
-            # 统一捕获并回滚事务。
             db.rollback()
             code, message = _friendly_stream_error(exc)
             yield _sse("error", {"code": code, "message": message})
 
-    # 返回标准 SSE 响应。
-    # 这里显式关闭缓存和代理缓冲，尽量减少中间层把流式内容攒包。
     return StreamingResponse(
         event_stream(),
         media_type="text/event-stream",
@@ -634,5 +645,4 @@ def stream_message(db: Session, session: ChatSession, content: str) -> Streaming
 
 
 def _sse(event: str, payload: dict[str, Any]) -> str:
-    # 将事件名和 JSON payload 拼成标准 SSE 文本格式。
     return f"event: {event}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"

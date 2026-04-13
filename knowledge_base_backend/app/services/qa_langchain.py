@@ -32,12 +32,18 @@ class SemanticAnalysis:
     """
 
     intent: str = "qa"
+    route: str = "kb_qa"
+    raw_query: str = ""
     is_follow_up: bool = False
     rewrite_query: str = ""
+    keywords_hit: list[str] = field(default_factory=list)
     entities: list[str] = field(default_factory=list)
+    filters: dict[str, Any] = field(default_factory=dict)
     needs_retrieval: bool = True
     risk_level: str = "medium"
     memory_summary: str = ""
+    reason: str = ""
+    confidence: float = 0.0
 
 
 def trim_text(text: str, max_chars: int) -> str:
@@ -91,6 +97,10 @@ def build_memory_summary(session_summary: dict[str, Any], recent_messages: list[
     last_answer_summary = session_summary.get("last_answer_summary")
     if last_answer_summary:
         parts.append(f"last_answer_summary: {trim_text(str(last_answer_summary), 240)}")
+
+    last_route = session_summary.get("last_route")
+    if last_route:
+        parts.append(f"last_route: {last_route}")
 
     key_entities = session_summary.get("key_entities") or []
     if key_entities:
@@ -234,8 +244,10 @@ def _build_answer_prompt() -> ChatPromptTemplate:
             "{question}",
             "",
             "意图：{intent}",
+            "路由：{route}",
             "是否追问：{is_follow_up}",
             "检索查询：{rewrite_query}",
+            "命中关键词：{keywords_hit}",
             "识别实体：{entities}",
             "",
             "会话记忆：",
@@ -281,8 +293,10 @@ def _build_answer_chain_inputs(
     return {
         "question": question,
         "intent": analysis.intent,
+        "route": analysis.route,
         "is_follow_up": str(analysis.is_follow_up).lower(),
         "rewrite_query": analysis.rewrite_query or question,
+        "keywords_hit": ", ".join(analysis.keywords_hit) if analysis.keywords_hit else "(none)",
         "entities": ", ".join(analysis.entities) if analysis.entities else "(none)",
         "memory_summary": memory_summary or "(empty)",
         "recent_history": build_history_block(recent_messages),
@@ -408,8 +422,9 @@ def build_session_summary(
     analysis: SemanticAnalysis,
     answer_text: str,
     retrieval_results: list[dict[str, Any]],
+    query_understanding: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    return {
+    summary = {
         "topic": analysis.intent,
         "last_user_question": question,
         "last_answer_summary": extract_answer_summary(answer_text),
@@ -417,4 +432,8 @@ def build_session_summary(
         "rewrite_query": analysis.rewrite_query,
         "retrieved_count": len(retrieval_results),
         "confidence": 0.7 if retrieval_results else 0.2,
+        "last_route": analysis.route,
     }
+    if query_understanding:
+        summary["query_understanding"] = query_understanding
+    return summary

@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.config import RETRIEVE_TOP_K
 from app.models import Chunk, RetrievalLog
+from app.schemas import QueryUnderstandingResult
 from app.services.vector_store import query_chunks
 
 
@@ -27,6 +28,18 @@ RELEVANCE_VECTOR_FALLBACK_THRESHOLD = 0.55
 
 def _to_json(data: object) -> str:
     return json.dumps(data, ensure_ascii=False, default=str)
+
+
+def _unique_keep_order(items: list[str]) -> list[str]:
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for item in items:
+        value = str(item or "").strip()
+        if not value or value in seen:
+            continue
+        seen.add(value)
+        ordered.append(value)
+    return ordered
 
 
 def _load_chunk_metadata(chunk: Chunk) -> dict:
@@ -124,6 +137,41 @@ def _freshness_score(updated_at: datetime | None) -> float:
     if days <= 90:
         return 0.01
     return 0.0
+
+
+def _understanding_term_features(
+    term: str,
+    chunk: Chunk,
+    *,
+    content_override: str | None = None,
+) -> dict[str, float | int]:
+    normalized_term = (term or "").strip().lower()
+    if not normalized_term:
+        return {
+            "term_overlap_count": 0,
+            "term_overlap_ratio": 0.0,
+            "term_title_overlap_count": 0,
+            "term_title_overlap_ratio": 0.0,
+        }
+
+    title = (chunk.document.title or "").lower()
+    content = (content_override or chunk.content or "").lower()
+    title_tokens = tokenize(title)
+    content_tokens = tokenize(content)
+    term_tokens = tokenize(normalized_term)
+    if not term_tokens:
+        term_tokens = [normalized_term]
+
+    overlap_count = sum(1 for token in set(term_tokens) if token in content_tokens)
+    title_overlap_count = sum(1 for token in set(term_tokens) if token in title_tokens)
+    overlap_ratio = overlap_count / max(len(set(term_tokens)), 1)
+    title_overlap_ratio = title_overlap_count / max(len(set(term_tokens)), 1)
+    return {
+        "term_overlap_count": overlap_count,
+        "term_overlap_ratio": round(overlap_ratio, 4),
+        "term_title_overlap_count": title_overlap_count,
+        "term_title_overlap_ratio": round(title_overlap_ratio, 4),
+    }
 
 
 def _keyword_recall(db: Session, query: str, query_tokens: list[str], top_k: int) -> list[dict]:
@@ -228,8 +276,9 @@ def _merge_candidates(keyword_candidates: list[dict], vector_candidates: list[di
     return list(merged.values())
 
 
-def _rerank_candidates(candidates: list[dict]) -> list[dict]:
+def _rerank_candidates(candidates: list[dict], understanding_terms: list[str] | None = None) -> list[dict]:
     reranked: list[dict] = []
+    normalized_terms = _unique_keep_order(understanding_terms or [])
 
     for candidate in candidates:
         chunk = candidate["chunk"]
@@ -240,6 +289,16 @@ def _rerank_candidates(candidates: list[dict]) -> list[dict]:
         title_hit_bonus = 0.08 if features.get("title_overlap_count", 0) else 0.0
         multi_channel_bonus = 0.12 if len(candidate["channels"]) >= 2 else 0.0
         freshness_bonus = _freshness_score(chunk.document.updated_at)
+        understanding_bonus = 0.0
+
+        if normalized_terms:
+            max_term_overlap = 0.0
+            max_term_title_overlap = 0.0
+            for term in normalized_terms:
+                term_features = _understanding_term_features(term, chunk, content_override=candidate.get("content"))
+                max_term_overlap = max(max_term_overlap, float(term_features["term_overlap_ratio"]))
+                max_term_title_overlap = max(max_term_title_overlap, float(term_features["term_title_overlap_ratio"]))
+            understanding_bonus = min(0.12, 0.08 * max_term_overlap + 0.04 * max_term_title_overlap)
 
         final_score = (
             0.38 * keyword_score
@@ -247,6 +306,7 @@ def _rerank_candidates(candidates: list[dict]) -> list[dict]:
             + multi_channel_bonus
             + title_hit_bonus
             + freshness_bonus
+            + understanding_bonus
         )
 
         reranked.append(
@@ -265,6 +325,7 @@ def _rerank_candidates(candidates: list[dict]) -> list[dict]:
                 "channels": sorted(candidate["channels"]),
                 "title_hit": bool(features.get("title_overlap_count", 0)),
                 "freshness_bonus": round(freshness_bonus, 4),
+                "understanding_bonus": round(understanding_bonus, 4),
                 "chroma_id": chunk.chroma_id,
             }
         )
@@ -342,6 +403,90 @@ def retrieve(db: Session, session_id: int | None, query: str, top_k: int = RETRI
         RetrievalLog(
             session_id=session_id,
             query=query,
+            retrieved_chunks=json.dumps(retrieved_snapshot, ensure_ascii=False),
+            reranked_chunks=json.dumps(top_results, ensure_ascii=False),
+        )
+    )
+    db.commit()
+    return top_results
+
+
+def retrieve_with_understanding(
+    db: Session,
+    session_id: int | None,
+    understanding: QueryUnderstandingResult,
+    top_k: int = RETRIEVE_TOP_K,
+) -> list[dict]:
+    queries = _unique_keep_order(
+        [
+            understanding.rewrite_query,
+            understanding.raw_query,
+            *understanding.keywords_hit,
+            *understanding.entities,
+        ]
+    )
+    if not queries:
+        queries = [understanding.raw_query]
+
+    merged_candidates: dict[int, dict] = {}
+    retrieved_snapshot: list[dict] = []
+
+    for query in queries:
+        query_tokens = tokenize(query)
+        keyword_candidates = _keyword_recall(db, query, query_tokens, top_k)
+        vector_candidates = _vector_recall(db, query, top_k)
+        per_query_candidates = _merge_candidates(keyword_candidates, vector_candidates)
+
+        for candidate in per_query_candidates:
+            chunk = candidate["chunk"]
+            existing = merged_candidates.get(chunk.id)
+            if existing is None:
+                merged_candidates[chunk.id] = candidate
+                existing = merged_candidates[chunk.id]
+            else:
+                existing["channels"].update(candidate["channels"])
+                existing["keyword_score"] = max(existing["keyword_score"], candidate["keyword_score"])
+                existing["vector_score"] = max(existing["vector_score"], candidate["vector_score"])
+                if existing["distance"] is None or (
+                    candidate["distance"] is not None and candidate["distance"] < existing["distance"]
+                ):
+                    existing["distance"] = candidate["distance"]
+                if candidate["content"]:
+                    existing["content"] = candidate["content"]
+                existing["features"].update(candidate["features"])
+
+            retrieved_snapshot.append(
+                {
+                    "query": query,
+                    "chunk_id": chunk.id,
+                    "document_id": chunk.document_id,
+                    "document_title": chunk.document.title,
+                    "chunk_index": chunk.chunk_index,
+                    "keyword_score": round(candidate["keyword_score"], 4),
+                    "vector_score": round(candidate["vector_score"], 4),
+                    "channels": sorted(candidate["channels"]),
+                    "chroma_id": chunk.chroma_id,
+                }
+            )
+
+    understanding_terms = _unique_keep_order([*understanding.keywords_hit, *understanding.entities])
+    reranked_candidates = _rerank_candidates(list(merged_candidates.values()), understanding_terms=understanding_terms)
+    filtered_candidates = [candidate for candidate in reranked_candidates if _passes_relevance_gate(candidate)]
+    top_results = filtered_candidates[:top_k]
+
+    db.add(
+        RetrievalLog(
+            session_id=session_id,
+            query=json.dumps(
+                {
+                    "raw_query": understanding.raw_query,
+                    "rewrite_query": understanding.rewrite_query,
+                    "keywords": understanding.keywords_hit,
+                    "entities": understanding.entities,
+                    "filters": understanding.filters,
+                },
+                ensure_ascii=False,
+            ),
             retrieved_chunks=json.dumps(retrieved_snapshot, ensure_ascii=False),
             reranked_chunks=json.dumps(top_results, ensure_ascii=False),
         )
