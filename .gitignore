@@ -19,6 +19,7 @@ knowledge_base_backend/*.db-*
 knowledge_base_backend/data/*
 !knowledge_base_backend/data/.gitkeep
 knowledge_base_backend/static/
+logs/
 
 # Frontend runtime artifacts
 knowledge_base_frontend/*.log

@@ -56,12 +56,16 @@ for candidate in (BASE_DIR / ".env", BASE_DIR / ".env.local"):
     _ENV_FILE_VALUES.update(_load_env_from_file(candidate))
 
 
-def _get_env(name: str, default: str = "") -> str:
+def _get_env(name: str, default: str = "", prefer_env_file: bool = False) -> str:
     # 配置优先级：
     # 1. 当前进程环境变量
     # 2. 项目根目录 .env / .env.local
     # 3. Windows 用户环境变量
     # 4. 代码默认值
+    if prefer_env_file:
+        value = _ENV_FILE_VALUES.get(name)
+        if value:
+            return value
     value = os.getenv(name)
     if value:
         return value
@@ -82,12 +86,12 @@ def _get_env(name: str, default: str = "") -> str:
 
 
 # 模型相关配置。
-OPENAI_BASE_URL = _get_env("OPENAI_BASE_URL", "https://api.minimaxi.com/v1")
-OPENAI_API_KEY = _get_env("OPENAI_API_KEY") or _get_env("MINIMAX_API_KEY")
-MINIMAX_MODEL_NAME = _get_env("MINIMAX_MODEL_NAME", "MiniMax-M2.5")
-MINIMAX_TEMPERATURE = float(_get_env("MINIMAX_TEMPERATURE", "0.2"))
-MINIMAX_MAX_OUTPUT_TOKENS = int(_get_env("MINIMAX_MAX_OUTPUT_TOKENS", "2048"))
-MINIMAX_REASONING_SPLIT = _get_env("MINIMAX_REASONING_SPLIT", "false").lower() not in {"0", "false", "no"}
+OPENAI_BASE_URL = _get_env("OPENAI_BASE_URL", "https://api.minimaxi.com/v1", prefer_env_file=True)
+OPENAI_API_KEY = _get_env("OPENAI_API_KEY", prefer_env_file=True) or _get_env("MINIMAX_API_KEY", prefer_env_file=True)
+MINIMAX_MODEL_NAME = _get_env("MINIMAX_MODEL_NAME", "MiniMax-M2.5", prefer_env_file=True)
+MINIMAX_TEMPERATURE = float(_get_env("MINIMAX_TEMPERATURE", "0.2", prefer_env_file=True))
+MINIMAX_MAX_OUTPUT_TOKENS = int(_get_env("MINIMAX_MAX_OUTPUT_TOKENS", "2048", prefer_env_file=True))
+MINIMAX_REASONING_SPLIT = _get_env("MINIMAX_REASONING_SPLIT", "false", prefer_env_file=True).lower() not in {"0", "false", "no"}
 
 # 上传格式白名单。即便前端做了校验，服务端仍然需要兜底检查。
 SUPPORTED_EXTENSIONS = {

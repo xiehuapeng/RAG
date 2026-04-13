@@ -8,6 +8,7 @@ from typing import Any
 
 # FastAPI 的流式响应对象。
 from fastapi.responses import StreamingResponse
+from openai import AuthenticationError as OpenAIAuthenticationError
 # SQLAlchemy 会话对象。
 from sqlalchemy.orm import Session
 
@@ -52,6 +53,15 @@ THINK_CLOSE = "</think>"
 def _friendly_stream_error(exc: Exception) -> tuple[str, str]:
     # 将内部异常映射为前端可识别的错误码和用户可读提示。
     message = str(exc).lower()
+    if isinstance(exc, OpenAIAuthenticationError):
+        return "config_error", "模型服务鉴权失败，请检查 API Key、Base URL 或模型配置。"
+    if (
+        "api secret key" in message
+        or "authorized_error" in message
+        or "invalid api key" in message
+        or "authenticationerror" in message
+    ):
+        return "config_error", "模型服务鉴权失败，请检查 API Key、Base URL 或模型配置。"
     if isinstance(exc, MinimaxConfigError):
         return "config_error", "模型配置缺失，请检查 API Key 和模型配置。"
     if "session not found" in message:

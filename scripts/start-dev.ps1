@@ -10,7 +10,6 @@ $frontendDir = Join-Path $repoRoot "knowledge_base_frontend"
 $venvPython = Join-Path $backendDir ".venv\\Scripts\\python.exe"
 $backendEnv = Join-Path $backendDir ".env"
 $backendEnvExample = Join-Path $backendDir ".env.example"
-$npmCmd = "C:\\Program Files\\nodejs\\npm.cmd"
 
 function Write-Step($message) {
     Write-Host "[dev-start] $message" -ForegroundColor Cyan
@@ -33,6 +32,22 @@ function Get-PythonCommand() {
     }
 
     throw "Python 3.12 is required. Please install it first."
+}
+
+function Get-NpmCommand() {
+    $commands = @("npm.cmd", "npm")
+
+    foreach ($command in $commands) {
+        try {
+            $resolved = (Get-Command $command -ErrorAction Stop).Source
+            if ($resolved) {
+                return $resolved
+            }
+        } catch {
+        }
+    }
+
+    throw "npm was not found in PATH. Please install Node.js 20+ first."
 }
 
 function Ensure-BackendEnv() {
@@ -77,9 +92,7 @@ function Ensure-FrontendDeps() {
         return
     }
 
-    if (-not (Test-Path $npmCmd)) {
-        throw "npm was not found at $npmCmd. Please install Node.js 20+ first."
-    }
+    $npmCmd = Get-NpmCommand
 
     Write-Step "Installing frontend dependencies"
     Push-Location $frontendDir
@@ -94,6 +107,8 @@ Ensure-BackendEnv
 Ensure-BackendVenv
 Ensure-BackendDeps
 Ensure-FrontendDeps
+
+$npmCmd = Get-NpmCommand
 
 $backendCommand = "Set-Location '$backendDir'; & '$venvPython' -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload"
 $frontendCommand = "Set-Location '$frontendDir'; & '$npmCmd' run dev -- --host 127.0.0.1 --port 5173"
