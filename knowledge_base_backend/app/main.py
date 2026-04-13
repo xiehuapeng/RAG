@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -10,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import APP_NAME
 from app.database import Base, SessionLocal, engine
+from app.logging_setup import setup_daily_file_logging
 from app.responses import error, success
 from app.routers import auth, chat, config, dashboard, documents
 from app.services.auth import bootstrap_admin
@@ -20,8 +22,13 @@ from app.services.migrations import run_startup_migrations
 # 后端应用入口：
 # 负责装配 API、初始化运行环境，并在生产环境托管前端静态资源。
 app = FastAPI(title=APP_NAME, version="1.0.0")
-STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+STATIC_DIR = PROJECT_ROOT / "static"
 STATIC_INDEX = STATIC_DIR / "index.html"
+
+logger = logging.getLogger(__name__)
+log_file_path = setup_daily_file_logging(PROJECT_ROOT)
+logger.info("[startup.logging] daily file logging enabled path=%s", log_file_path)
 
 app.add_middleware(
     CORSMiddleware,

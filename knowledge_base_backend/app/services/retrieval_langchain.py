@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import math
 import re
 from collections import Counter
@@ -13,12 +14,28 @@ from app.models import Chunk, RetrievalLog
 from app.services.vector_store import query_chunks
 
 
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
 TOKEN_PATTERN = re.compile(r"[\u4e00-\u9fff]+|[A-Za-z0-9_]+")
 VECTOR_CANDIDATE_MULTIPLIER = 3
 KEYWORD_CANDIDATE_MULTIPLIER = 4
 RELEVANCE_SCORE_THRESHOLD = 0.50
 RELEVANCE_KEYWORD_FALLBACK_THRESHOLD = 0.20
 RELEVANCE_VECTOR_FALLBACK_THRESHOLD = 0.55
+
+
+def _to_json(data: object) -> str:
+    return json.dumps(data, ensure_ascii=False, default=str)
+
+
+def _load_chunk_metadata(chunk: Chunk) -> dict:
+    if not chunk.metadata_json:
+        return {}
+    try:
+        return json.loads(chunk.metadata_json)
+    except json.JSONDecodeError:
+        return {}
 
 
 def _distance_to_score(distance: float | int | None) -> float:
@@ -216,6 +233,7 @@ def _rerank_candidates(candidates: list[dict]) -> list[dict]:
 
     for candidate in candidates:
         chunk = candidate["chunk"]
+        metadata = _load_chunk_metadata(chunk)
         features = candidate["features"]
         keyword_score = candidate["keyword_score"]
         vector_score = candidate["vector_score"]
@@ -236,6 +254,9 @@ def _rerank_candidates(candidates: list[dict]) -> list[dict]:
                 "chunk_id": chunk.id,
                 "document_id": chunk.document_id,
                 "document_title": chunk.document.title,
+                "chunk_index": chunk.chunk_index,
+                "section_title": metadata.get("section_title"),
+                "chapter_path": metadata.get("chapter_path"),
                 "content": candidate["content"] or chunk.content,
                 "score": round(min(final_score, 1.0), 4),
                 "keyword_score": round(keyword_score, 4),
@@ -276,16 +297,26 @@ def _passes_relevance_gate(candidate: dict) -> bool:
 
 def retrieve(db: Session, session_id: int | None, query: str, top_k: int = RETRIEVE_TOP_K) -> list[dict]:
     query_tokens = tokenize(query)
+    logger.info(
+        "[qa.retrieve.request] session_id=%s top_k=%s query=%s query_tokens=%s",
+        session_id,
+        top_k,
+        query,
+        _to_json(query_tokens),
+    )
     keyword_candidates = _keyword_recall(db, query, query_tokens, top_k)
+    print(f"Keyword candidates: {keyword_candidates}")
     vector_candidates = _vector_recall(db, query, top_k)
+    print(f"vector_candidates : {vector_candidates}")
     merged_candidates = _merge_candidates(keyword_candidates, vector_candidates)
     reranked_candidates = _rerank_candidates(merged_candidates)
-
+    print(f"merged_candidates : {merged_candidates}, reranked_candidates : {reranked_candidates}")
     retrieved_snapshot = [
         {
             "chunk_id": candidate["chunk"].id,
             "document_id": candidate["chunk"].document_id,
             "document_title": candidate["chunk"].document.title,
+            "chunk_index": candidate["chunk"].chunk_index,
             "keyword_score": round(candidate["keyword_score"], 4),
             "vector_score": round(candidate["vector_score"], 4),
             "channels": sorted(candidate["channels"]),
@@ -296,6 +327,16 @@ def retrieve(db: Session, session_id: int | None, query: str, top_k: int = RETRI
 
     filtered_candidates = [candidate for candidate in reranked_candidates if _passes_relevance_gate(candidate)]
     top_results = filtered_candidates[:top_k]
+    logger.info(
+        "[qa.retrieve.response] session_id=%s query=%s keyword_candidates=%s vector_candidates=%s merged_candidates=%s filtered_candidates=%s top_results=%s",
+        session_id,
+        query,
+        len(keyword_candidates),
+        len(vector_candidates),
+        len(merged_candidates),
+        len(filtered_candidates),
+        _to_json(top_results),
+    )
 
     db.add(
         RetrievalLog(
