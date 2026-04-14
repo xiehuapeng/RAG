@@ -28,16 +28,28 @@ const router = createRouter({
   routes,
 })
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   const session = useSessionStore()
   session.restore()
 
-  if (!to.meta.public && !session.token) {
-    return '/login'
+  if (to.meta.public) {
+    if (to.path === '/login' && session.token) {
+      const valid = await session.validateSession()
+      if (valid) {
+        return '/home'
+      }
+    }
+    return true
   }
-  if (to.path === '/login' && session.token) {
-    return '/home'
+
+  const valid = await session.validateSession()
+  if (!valid) {
+    return {
+      path: '/login',
+      query: { redirect: to.fullPath },
+    }
   }
+
   return true
 })
 

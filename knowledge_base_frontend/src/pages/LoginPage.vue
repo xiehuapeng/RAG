@@ -31,7 +31,7 @@ async function handleLogin() {
       },
     })
     ElMessage.success('登录成功')
-    router.push('/home')
+    router.push(router.currentRoute.value.query.redirect || '/home')
   } catch {
     ElMessage.error('登录失败，请检查账号、密码或后端服务状态')
   } finally {
