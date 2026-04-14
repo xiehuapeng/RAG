@@ -1,7 +1,7 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 
-export const API_BASE_URL = import.meta.env.DEV ? 'http://127.0.0.1:8000' : ''
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
 
 const http = axios.create({
   baseURL: API_BASE_URL || undefined,

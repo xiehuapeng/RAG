@@ -111,7 +111,7 @@ Ensure-FrontendDeps
 $npmCmd = Get-NpmCommand
 
 $backendCommand = "Set-Location '$backendDir'; & '$venvPython' -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload"
-$frontendCommand = "Set-Location '$frontendDir'; & '$npmCmd' run dev -- --host 127.0.0.1 --port 5173"
+$frontendCommand = "Set-Location '$frontendDir'; & '$npmCmd' run dev -- --host 0.0.0.0 --port 5173"
 
 Write-Step "Starting backend in a new PowerShell window"
 Start-Process powershell.exe -ArgumentList "-NoExit", "-Command", $backendCommand | Out-Null
