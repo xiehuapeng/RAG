@@ -114,7 +114,10 @@ onMounted(loadData)
           <el-icon><Monitor /></el-icon>
           <span>知识海洋总控台</span>
         </div>
-        <h2 class="poster-title">把文档、检索、问答与运营反馈，汇入一片会发光的知识海洋。</h2>
+        <h2 class="poster-title">
+          <span class="poster-title-line">把文档、检索、问答与运营反馈，</span>
+          <span class="poster-title-line">汇入一片会发光的知识海洋。</span>
+        </h2>
         <p class="poster-subtitle">
           这里不是传统后台首页，而是一块可观察、可进入、可追溯的知识控制台。你可以从这里进入问答、治理知识资产，并观察系统热度变化。
         </p>

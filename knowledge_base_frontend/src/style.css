@@ -1472,11 +1472,16 @@ body::before {
 
 .poster-title {
   margin: 18px 0 0;
-  max-width: 12ch;
-  font-size: clamp(34px, 4vw, 62px);
-  line-height: 0.96;
-  letter-spacing: -0.05em;
+  max-width: 780px;
+  font-size: 38px;
+  line-height: 1.32;
+  letter-spacing: 0;
   color: #f4fbff;
+}
+
+.poster-title-line {
+  display: block;
+  white-space: nowrap;
 }
 
 .poster-subtitle {
@@ -1996,18 +2001,48 @@ body::before {
   .chat-stage-signal-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+
+  .knowledge-ocean-hero {
+    gap: 24px;
+  }
+
+  .knowledge-ocean-hero .poster-title {
+    max-width: 720px;
+    font-size: 36px;
+    line-height: 1.32;
+  }
+
+  .knowledge-ocean-hero .poster-subtitle {
+    max-width: 680px;
+  }
 }
 
 @media (max-width: 768px) {
   .poster-title {
     max-width: none;
-    font-size: 34px;
+    font-size: 30px;
+    line-height: 1.32;
   }
 
   .poster-hero,
   .chat-hero-poster {
     padding: 22px 18px;
     border-radius: 22px;
+  }
+
+  .knowledge-ocean-hero {
+    padding: 22px 18px;
+    gap: 18px;
+  }
+
+  .knowledge-ocean-hero .poster-title {
+    font-size: 30px;
+    line-height: 1.32;
+  }
+
+  .knowledge-ocean-hero .poster-subtitle {
+    font-size: 13px;
+    line-height: 1.8;
   }
 
   .poster-action-row,
@@ -3135,6 +3170,9 @@ body::before,
 .knowledge-ocean-hero {
   position: relative;
   overflow: hidden;
+  grid-template-columns: minmax(0, 0.98fr) minmax(520px, 1.02fr);
+  gap: 30px;
+  padding: 34px 38px 32px;
   background:
     radial-gradient(circle at 20% 20%, rgba(59, 130, 246, 0.16), transparent 24%),
     radial-gradient(circle at 80% 12%, rgba(20, 184, 166, 0.16), transparent 20%),
@@ -3176,6 +3214,12 @@ body::before,
 }
 
 .knowledge-ocean-hero .poster-title {
+  margin-top: 20px;
+  max-width: none;
+  font-size: 38px;
+  line-height: 1.32;
+  letter-spacing: 0;
+  font-weight: 800;
   background: linear-gradient(105deg, #06142f 0%, #1d4ed8 52%, #0891b2 100%);
   -webkit-background-clip: text;
   background-clip: text;
@@ -3184,28 +3228,31 @@ body::before,
 }
 
 .knowledge-ocean-hero .poster-subtitle {
-  max-width: 720px;
+  margin-top: 18px;
+  max-width: 700px;
   color: #334155 !important;
   font-weight: 500;
+  font-size: 14px;
+  line-height: 1.9;
 }
 
 .ocean-ribbon {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  margin: 18px 0 2px;
+  margin: 18px 0 0;
 }
 
 .ocean-ribbon span {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px;
+  padding: 7px 11px;
   border-radius: 999px;
   background: rgba(219, 234, 254, 0.86);
   color: #1e40af;
   border: 1px solid rgba(96, 165, 250, 0.36);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   box-shadow: 0 8px 18px rgba(37, 99, 235, 0.08);
 }
@@ -3221,6 +3268,7 @@ body::before,
 
 .knowledge-ocean-visual {
   overflow: hidden;
+  min-width: 520px;
   background:
     radial-gradient(circle at 38% 44%, rgba(56, 189, 248, 0.28), transparent 18%),
     radial-gradient(circle at 76% 26%, rgba(129, 140, 248, 0.26), transparent 24%),
@@ -3311,4 +3359,45 @@ body::before,
 .knowledge-ocean-visual .poster-core-card,
 .knowledge-ocean-visual .poster-floating-card {
   box-shadow: 0 22px 46px rgba(37, 99, 235, 0.14) !important;
+}
+
+@media (max-width: 1280px) {
+  .knowledge-ocean-hero {
+    gap: 24px;
+  }
+
+  .knowledge-ocean-visual {
+    min-width: 0;
+  }
+
+  .knowledge-ocean-hero .poster-title {
+    max-width: 720px;
+    font-size: 36px;
+    line-height: 1.32;
+  }
+
+  .knowledge-ocean-hero .poster-subtitle {
+    max-width: 680px;
+  }
+}
+
+@media (max-width: 768px) {
+  .knowledge-ocean-hero {
+    padding: 22px 18px;
+    gap: 18px;
+  }
+
+  .knowledge-ocean-hero .poster-title {
+    font-size: 30px;
+    line-height: 1.32;
+  }
+
+  .poster-title-line {
+    white-space: normal;
+  }
+
+  .knowledge-ocean-hero .poster-subtitle {
+    font-size: 13px;
+    line-height: 1.8;
+  }
 }
