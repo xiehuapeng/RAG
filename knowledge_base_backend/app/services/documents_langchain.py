@@ -168,7 +168,10 @@ def _build_chunk_specs(file_path: Path, full_text: str) -> list[ChunkSpec]:
         content = item.page_content.strip()
         if not content:
             continue
-        specs.append(ChunkSpec(content=content, metadata=dict(item.metadata)))
+        metadata = dict(item.metadata)
+        if _is_structure_only_chunk(content, metadata):
+            continue
+        specs.append(ChunkSpec(content=content, metadata=metadata))
 
     if specs:
         return specs
@@ -194,6 +197,22 @@ def _build_chunk_specs(file_path: Path, full_text: str) -> list[ChunkSpec]:
         )
         for index, piece in enumerate(pieces)
     ]
+
+
+def _is_structure_only_chunk(content: str, metadata: dict[str, Any]) -> bool:
+    normalized = " ".join(content.split())
+    if not normalized:
+        return True
+
+    section_title = " ".join(str(metadata.get("section_title") or "").split())
+    chapter_path = " ".join(str(metadata.get("chapter_path") or "").split())
+    if normalized in {section_title, chapter_path}:
+        return True
+
+    if chapter_path and normalized == chapter_path.replace(" / ", " "):
+        return True
+
+    return False
 
 
 def _replace_document_chunks(db: Session, document: Document, chunk_specs: list[ChunkSpec]) -> None:

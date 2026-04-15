@@ -24,6 +24,7 @@ KEYWORD_CANDIDATE_MULTIPLIER = 4
 RELEVANCE_SCORE_THRESHOLD = 0.50
 RELEVANCE_KEYWORD_FALLBACK_THRESHOLD = 0.20
 RELEVANCE_VECTOR_FALLBACK_THRESHOLD = 0.55
+LOW_VALUE_COVERAGE_TERMS = {"开户", "批量开户", "设置", "选择", "方法", "怎么", "如何"}
 
 
 def _to_json(data: object) -> str:
@@ -137,6 +138,20 @@ def _freshness_score(updated_at: datetime | None) -> float:
     if days <= 90:
         return 0.01
     return 0.0
+
+
+def _is_structure_only_content(content: str, metadata: dict) -> bool:
+    normalized = " ".join(str(content or "").split())
+    if not normalized:
+        return True
+
+    section_title = " ".join(str(metadata.get("section_title") or "").split())
+    chapter_path = " ".join(str(metadata.get("chapter_path") or "").split())
+    if normalized in {section_title, chapter_path}:
+        return True
+    if chapter_path and normalized == chapter_path.replace(" / ", " "):
+        return True
+    return False
 
 
 def _understanding_term_features(
@@ -283,6 +298,8 @@ def _rerank_candidates(candidates: list[dict], understanding_terms: list[str] | 
     for candidate in candidates:
         chunk = candidate["chunk"]
         metadata = _load_chunk_metadata(chunk)
+        content = candidate["content"] or chunk.content
+        is_structure_only = _is_structure_only_content(content, metadata)
         features = candidate["features"]
         keyword_score = candidate["keyword_score"]
         vector_score = candidate["vector_score"]
@@ -317,7 +334,7 @@ def _rerank_candidates(candidates: list[dict], understanding_terms: list[str] | 
                 "chunk_index": chunk.chunk_index,
                 "section_title": metadata.get("section_title"),
                 "chapter_path": metadata.get("chapter_path"),
-                "content": candidate["content"] or chunk.content,
+                "content": content,
                 "score": round(min(final_score, 1.0), 4),
                 "keyword_score": round(keyword_score, 4),
                 "vector_score": round(vector_score, 4),
@@ -326,6 +343,7 @@ def _rerank_candidates(candidates: list[dict], understanding_terms: list[str] | 
                 "title_hit": bool(features.get("title_overlap_count", 0)),
                 "freshness_bonus": round(freshness_bonus, 4),
                 "understanding_bonus": round(understanding_bonus, 4),
+                "is_structure_only": is_structure_only,
                 "chroma_id": chunk.chroma_id,
             }
         )
@@ -344,6 +362,8 @@ def _rerank_candidates(candidates: list[dict], understanding_terms: list[str] | 
 
 
 def _passes_relevance_gate(candidate: dict) -> bool:
+    if bool(candidate.get("is_structure_only")):
+        return False
     if float(candidate.get("score") or 0.0) >= RELEVANCE_SCORE_THRESHOLD:
         return True
     if bool(candidate.get("title_hit")):
@@ -354,6 +374,90 @@ def _passes_relevance_gate(candidate: dict) -> bool:
     ):
         return True
     return False
+
+
+def _candidate_text(candidate: dict) -> str:
+    parts = [
+        candidate.get("content") or "",
+        candidate.get("section_title") or "",
+        candidate.get("chapter_path") or "",
+        candidate.get("document_title") or "",
+    ]
+    return "\n".join(str(part) for part in parts if part)
+
+
+def _coverage_terms(terms: list[str]) -> list[str]:
+    unique_terms = _unique_keep_order(terms)
+    specific_terms = [term for term in unique_terms if term not in LOW_VALUE_COVERAGE_TERMS]
+    fallback_terms = [term for term in unique_terms if term in LOW_VALUE_COVERAGE_TERMS]
+    return specific_terms + fallback_terms[:1]
+
+
+def _coverage_match_score(candidate: dict, term: str) -> float:
+    content = str(candidate.get("content") or "")
+    section_title = str(candidate.get("section_title") or "")
+    chapter_path = str(candidate.get("chapter_path") or "")
+    searchable = _candidate_text(candidate)
+    if term not in searchable:
+        return -1.0
+
+    coverage_score = float(candidate.get("score") or 0.0)
+    if term in content:
+        coverage_score += 0.4
+    if term in section_title or term in chapter_path:
+        coverage_score += 0.35
+    if "操作步骤" in section_title or "操作步骤" in chapter_path:
+        coverage_score += 0.3
+    elif "业务规则" in section_title or "业务规则" in chapter_path:
+        coverage_score -= 0.25
+    if term in content and "设置" in content:
+        coverage_score += 0.2
+    if term in content and ("选择" in content or "选为" in content):
+        coverage_score += 0.15
+    if term == "折扣" and ("是否打折" in content or "折扣率" in content or "折扣价格" in content):
+        coverage_score += 0.35
+    return coverage_score
+
+
+def _select_top_results(
+    reranked_candidates: list[dict],
+    top_k: int,
+    coverage_terms: list[str] | None = None,
+) -> list[dict]:
+    eligible_candidates = [candidate for candidate in reranked_candidates if _passes_relevance_gate(candidate)]
+    if not coverage_terms:
+        return eligible_candidates[:top_k]
+
+    selected: list[dict] = []
+    selected_ids: set[int] = set()
+
+    for term in _coverage_terms(coverage_terms):
+        best_candidate = None
+        best_score = -1.0
+        for candidate in eligible_candidates:
+            chunk_id = int(candidate.get("chunk_id") or 0)
+            if chunk_id in selected_ids:
+                continue
+            match_score = _coverage_match_score(candidate, term)
+            if match_score > best_score:
+                best_candidate = candidate
+                best_score = match_score
+
+        if best_candidate is not None and best_score >= 0:
+            selected.append(best_candidate)
+            selected_ids.add(int(best_candidate.get("chunk_id") or 0))
+            if len(selected) >= top_k:
+                return selected
+
+    for candidate in eligible_candidates:
+        chunk_id = int(candidate.get("chunk_id") or 0)
+        if chunk_id in selected_ids:
+            continue
+        selected.append(candidate)
+        if len(selected) >= top_k:
+            break
+
+    return selected
 
 
 def retrieve(db: Session, session_id: int | None, query: str, top_k: int = RETRIEVE_TOP_K) -> list[dict]:
@@ -387,7 +491,7 @@ def retrieve(db: Session, session_id: int | None, query: str, top_k: int = RETRI
     ]
 
     filtered_candidates = [candidate for candidate in reranked_candidates if _passes_relevance_gate(candidate)]
-    top_results = filtered_candidates[:top_k]
+    top_results = _select_top_results(reranked_candidates, top_k)
     logger.info(
         "[qa.retrieve.response] session_id=%s query=%s keyword_candidates=%s vector_candidates=%s merged_candidates=%s filtered_candidates=%s top_results=%s",
         session_id,
@@ -472,7 +576,7 @@ def retrieve_with_understanding(
     understanding_terms = _unique_keep_order([*understanding.keywords_hit, *understanding.entities])
     reranked_candidates = _rerank_candidates(list(merged_candidates.values()), understanding_terms=understanding_terms)
     filtered_candidates = [candidate for candidate in reranked_candidates if _passes_relevance_gate(candidate)]
-    top_results = filtered_candidates[:top_k]
+    top_results = _select_top_results(reranked_candidates, top_k, coverage_terms=understanding_terms)
 
     db.add(
         RetrievalLog(
