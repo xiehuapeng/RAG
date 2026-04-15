@@ -118,6 +118,8 @@ class QueryUnderstandingLog(Base):
     need_context: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     keywords_hit_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     entities_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    search_terms_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    search_queries_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     filters_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     provider: Mapped[str | None] = mapped_column(Text, nullable=True)

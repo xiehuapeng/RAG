@@ -57,6 +57,8 @@ class QueryUnderstandingResult(BaseModel):
     rewrite_query: str = ""
     keywords_hit: list[str] = Field(default_factory=list)
     entities: list[str] = Field(default_factory=list)
+    search_terms: list[str] = Field(default_factory=list)
+    search_queries: list[str] = Field(default_factory=list)
     filters: dict = Field(default_factory=dict)
     reason: str = ""
     provider: str = "rules"

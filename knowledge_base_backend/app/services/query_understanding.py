@@ -137,6 +137,47 @@ OUT_OF_SCOPE_CUES = [
 
 ALLOWED_ROUTES = {"kb_qa", "out_of_scope"}
 JSON_OBJECT_RE = re.compile(r"\{.*\}", re.DOTALL)
+RULE_SEARCH_TERM_CANDIDATES = [
+    "物联网卡",
+    "物联卡",
+    "开卡",
+    "开户",
+    "批量开户",
+    "主商品",
+    "主产品",
+    "增值商品",
+    "账户模式",
+    "测试期",
+    "折扣",
+    "缴费周期",
+    "政府类",
+    "政府部门",
+    "企业类型",
+    "后付费",
+    "订单成功",
+    "订单",
+    "修改",
+    "变更",
+    "重新修改",
+    "选择",
+]
+ENRICHMENT_CUES = [
+    "能",
+    "能不能",
+    "可以",
+    "是否",
+    "怎么",
+    "如何",
+    "设置",
+    "选择",
+    "选错",
+    "修改",
+    "变更",
+    "报错",
+    "限制",
+    "规则",
+    "政策",
+]
 
 
 def _unique_keep_order(items: list[str]) -> list[str]:
@@ -153,6 +194,51 @@ def _unique_keep_order(items: list[str]) -> list[str]:
 
 def _normalize_match_text(text: str) -> str:
     return re.sub(r"[\s_\-:/]+", "", text or "").lower()
+
+
+def _derive_rule_search_terms(query: str, keyword_hits: list[str]) -> list[str]:
+    normalized = query or ""
+    terms = [term for term in RULE_SEARCH_TERM_CANDIDATES if term in normalized]
+
+    if "开卡" in normalized:
+        terms.append("开户")
+    if "改" in normalized or "变更" in normalized:
+        terms.append("修改")
+    if "选错" in normalized:
+        terms.extend(["选择", "修改"])
+    if "主商品" in normalized and any(marker in normalized for marker in ["改", "修改", "变更", "选错"]):
+        terms.extend(["主商品修改", "主产品修改", "重新修改主产品"])
+
+    terms.extend(keyword_hits)
+    return _unique_keep_order(terms)
+
+
+def _derive_rule_search_queries(query: str, search_terms: list[str]) -> list[str]:
+    normalized = query or ""
+    terms = set(search_terms)
+    queries: list[str] = []
+
+    if "主商品" in terms and any(term in terms for term in {"修改", "变更", "重新修改"}):
+        queries.extend(
+            [
+                "主商品 批量开户 订单成功 修改 主产品",
+                "主商品设置 批量开户 无法重新修改主产品",
+                "主产品 重新修改",
+            ]
+        )
+
+    if "测试期" in terms:
+        queries.extend(["SIM卡 初始状态 可测试 测试期", "测试期免费资源用尽后处理动作"])
+    if "折扣" in terms:
+        queries.extend(["批量开户 设置折扣 是否打折", "商品折扣率 折扣价格"])
+    if "账户模式" in terms:
+        queries.extend(["账户模式 集团统付 单卡个付", "账户信息 账户模式"])
+    if "政府类" in terms or "政府部门" in terms:
+        queries.extend(["企业类型 政府部门 后付费 缴费周期", "政府部门 缴费周期 12个月"])
+
+    if not queries and len(normalized) >= 8:
+        queries.append(normalized)
+    return _unique_keep_order(queries)
 
 
 def _safe_extract_json(text: str) -> dict[str, Any]:
@@ -303,8 +389,23 @@ class QueryUnderstandingService:
         route_rules = self.detect_route_by_rules(raw_query, history, session_summary, keyword_hits, follow_up)
         rule_result = self._build_rule_result(raw_query, keyword_hits, follow_up, route_rules)
 
-        if not self.enabled or not route_rules["need_model"]:
+        if not self.enabled:
             return rule_result
+
+        if not route_rules["need_model"]:
+            if not self._needs_model_enrichment(raw_query, route_rules):
+                return rule_result
+            model_result = self.understand_with_fallback(
+                query=raw_query,
+                history=history,
+                session_summary=session_summary,
+                keyword_hits=keyword_hits,
+                follow_up=follow_up,
+                route_rules=route_rules,
+            )
+            if model_result is None:
+                return rule_result
+            return self._merge_rule_and_model_result(rule_result, model_result, keyword_hits, follow_up, route_rules)
 
         model_result = self.understand_with_fallback(
             query=raw_query,
@@ -319,6 +420,12 @@ class QueryUnderstandingService:
         if model_result.confidence < self.semantic_confidence_threshold:
             return rule_result
         return self._merge_rule_and_model_result(rule_result, model_result, keyword_hits, follow_up, route_rules)
+
+    def _needs_model_enrichment(self, query: str, route_rules: dict[str, Any]) -> bool:
+        if route_rules.get("route") != "kb_qa":
+            return False
+        normalized = (query or "").strip()
+        return len(normalized) >= 8 and any(cue in normalized for cue in ENRICHMENT_CUES)
 
     def understand_with_ollama(
         self,
@@ -439,6 +546,7 @@ class QueryUnderstandingService:
             previous_user_query=follow_up.get("previous_user_query", ""),
             is_follow_up=bool(follow_up["is_follow_up_candidate"]),
         )
+        search_terms = _derive_rule_search_terms(raw_query, keyword_hits["all_hits"])
         return QueryUnderstandingResult(
             route=route_rules["route"],
             confidence=_clamp_confidence(route_rules["confidence"]),
@@ -448,6 +556,8 @@ class QueryUnderstandingService:
             rewrite_query=rewrite_query,
             keywords_hit=keyword_hits["all_hits"],
             entities=keyword_hits["all_hits"][:6],
+            search_terms=search_terms,
+            search_queries=_derive_rule_search_queries(raw_query, search_terms),
             filters={},
             reason=route_rules["reason"],
             provider="rules",
@@ -479,6 +589,8 @@ class QueryUnderstandingService:
             rewrite_query=rewrite_query,
             keywords_hit=_unique_keep_order(rule_result.keywords_hit + model_result.keywords_hit),
             entities=_unique_keep_order(model_result.entities + rule_result.entities),
+            search_terms=_unique_keep_order(model_result.search_terms + rule_result.search_terms),
+            search_queries=_unique_keep_order(model_result.search_queries + rule_result.search_queries),
             filters=model_result.filters or rule_result.filters,
             reason=model_result.reason or rule_result.reason,
             provider=model_result.provider,
@@ -508,6 +620,8 @@ class QueryUnderstandingService:
             rewrite_query=rewrite_query,
             keywords_hit=_unique_keep_order([str(item) for item in payload.get("keywords_hit") or []]),
             entities=_unique_keep_order([str(item) for item in payload.get("entities") or []]),
+            search_terms=_unique_keep_order([str(item) for item in payload.get("search_terms") or []]),
+            search_queries=_unique_keep_order([str(item) for item in payload.get("search_queries") or []]),
             filters=payload.get("filters") if isinstance(payload.get("filters"), dict) else {},
             reason=str(payload.get("reason") or ""),
             provider=provider,
@@ -594,10 +708,24 @@ class QueryUnderstandingService:
                 "rewrite_query": "string",
                 "keywords_hit": ["string"],
                 "entities": ["string"],
+                "search_terms": ["string"],
+                "search_queries": ["string"],
                 "filters": {},
                 "reason": "string",
             },
         }
+        instructions["task"].append(
+            "Generate search_terms for retrieval expansion: include source-document wording, synonyms, key conditions, values, and business nouns that may not appear in rewrite_query"
+        )
+        instructions["task"].append(
+            "Generate search_queries as 2-5 short focused retrieval queries that combine the core object, action, state, and possible document wording"
+        )
+        instructions["constraints"].append(
+            "search_terms must be short retrieval terms, not full sentences; do not invent facts, but include plausible document terms for the same business meaning"
+        )
+        instructions["constraints"].append(
+            "search_queries should be concise keyword queries, not answers; keep raw user intent and possible source wording both represented"
+        )
         payload = {
             "business_keywords": _unique_keep_order(BUSINESS_KEYWORDS_STRONG + BUSINESS_KEYWORDS_GENERAL),
             "current_query": query,
