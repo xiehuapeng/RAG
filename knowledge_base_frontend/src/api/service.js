@@ -1,6 +1,7 @@
 import http, { API_BASE_URL, post } from './http'
 
 export const MAX_UPLOAD_SIZE = 200 * 1024 * 1024
+export const MAX_UPLOAD_FILE_COUNT = 20
 
 function pickReadableQuestion(value) {
   if (typeof value !== 'string') {
@@ -134,6 +135,21 @@ export const documentApi = {
       .then((response) => {
         if (response.data.code !== 0) {
           throw new Error(response.data.message || '上传失败')
+        }
+        return response.data.data
+      })
+  },
+  uploadBatch({ files, overwrite = false }) {
+    const formData = new FormData()
+    files.forEach((file) => formData.append('files', file))
+    formData.append('overwrite', String(overwrite))
+    return http
+      .post('/api/documents/upload/batch', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      .then((response) => {
+        if (response.data.code !== 0) {
+          throw new Error(response.data.message || '批量上传失败')
         }
         return response.data.data
       })

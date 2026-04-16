@@ -14,6 +14,7 @@ __pycache__/
 # Backend runtime artifacts
 knowledge_base_backend/.env
 knowledge_base_backend/*.log
+knowledge_base_backend/logs/
 knowledge_base_backend/*.db
 knowledge_base_backend/*.db-*
 knowledge_base_backend/data/*
@@ -29,3 +30,4 @@ knowledge_base_frontend/*.log
 Thumbs.db
 .idea/
 .vscode/
+.codex/

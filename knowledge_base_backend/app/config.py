@@ -20,10 +20,11 @@ CHROMA_DIR = DATA_DIR / "chroma"
 APP_NAME = "knowledge-base-backend"
 SESSION_EXPIRE_DAYS = 7
 MAX_UPLOAD_SIZE = 200 * 1024 * 1024
+MAX_UPLOAD_FILE_COUNT = 20
 CHUNK_SIZE = 500
 CHUNK_OVERLAP = 80
 RETRIEVE_TOP_K = 5
-QA_RETRIEVE_TOP_K = 8
+QA_RETRIEVE_TOP_K = 12
 QA_HISTORY_LIMIT = 6
 QA_MAX_CONTEXT_CHARS = 12000
 # 旧项目已经在同一个 Chroma 目录里留下过一份 512 维集合。
@@ -125,9 +126,8 @@ SUPPORTED_EXTENSIONS = {
     ".csv",
     ".docx",
     ".pdf",
-    ".png",
-    ".jpg",
-    ".jpeg",
+    ".xls",
+    ".xlsx",
 }
 
 if __name__ == "__main__":

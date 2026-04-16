@@ -3,20 +3,24 @@ import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { CircleCheck, Clock, Delete, Document, Loading, RefreshRight, Search, Upload, Warning } from '@element-plus/icons-vue'
-import { MAX_UPLOAD_SIZE, documentApi } from '../api/service'
+import { MAX_UPLOAD_FILE_COUNT, MAX_UPLOAD_SIZE, documentApi } from '../api/service'
 import { formatDateTime } from '../utils/datetime'
 
 const router = useRouter()
 const loading = ref(false)
 const uploading = ref(false)
 const uploadVisible = ref(false)
+const uploadRef = ref(null)
+const uploadFileList = ref([])
 const tableData = ref([])
 const total = ref(0)
 const uploadForm = reactive({
   title: '',
-  file: null,
+  files: [],
   overwrite: false,
 })
+const SUPPORTED_UPLOAD_EXTENSIONS = ['txt', 'md', 'json', 'csv', 'docx', 'pdf', 'xls', 'xlsx']
+const SUPPORTED_UPLOAD_ACCEPT = SUPPORTED_UPLOAD_EXTENSIONS.map((item) => `.${item}`).join(',')
 const filters = reactive({
   keyword: '',
   status: '',
@@ -26,6 +30,11 @@ const filters = reactive({
 
 function formatSize(bytes) {
   return `${Math.round(bytes / 1024 / 1024)}MB`
+}
+
+function getFileExtension(fileName = '') {
+  const index = fileName.lastIndexOf('.')
+  return index >= 0 ? fileName.slice(index + 1).toLowerCase() : ''
 }
 
 async function loadDocuments() {
@@ -39,36 +48,93 @@ async function loadDocuments() {
   }
 }
 
-function beforeUpload(file) {
+function validateUploadFile(file, showMessage = true) {
+  const extension = getFileExtension(file.name)
+  if (!SUPPORTED_UPLOAD_EXTENSIONS.includes(extension)) {
+    if (showMessage) {
+      ElMessage.error(`暂不支持 ${extension ? `.${extension}` : '无扩展名'} 文件，请上传 txt、md、json、csv、docx、pdf、xls、xlsx 文件`)
+    }
+    return false
+  }
   if (file.size > MAX_UPLOAD_SIZE) {
-    ElMessage.error(`文件大小不能超过 200MB，当前文件为 ${formatSize(file.size)}`)
+    if (showMessage) {
+      ElMessage.error(`文件大小不能超过 200MB，当前文件为 ${formatSize(file.size)}`)
+    }
     return false
   }
   return true
 }
 
-function handleFileChange(uploadFile) {
-  uploadForm.file = uploadFile?.raw || null
+function syncUploadFiles(uploadFiles) {
+  uploadForm.files = uploadFiles.map((item) => item.raw).filter(Boolean)
+}
+
+function handleFileChange(uploadFile, uploadFiles) {
+  if (uploadFiles.length > MAX_UPLOAD_FILE_COUNT) {
+    ElMessage.error(`一次最多上传 ${MAX_UPLOAD_FILE_COUNT} 个文件`)
+    uploadRef.value?.handleRemove(uploadFile)
+    uploadFileList.value = uploadFiles.filter((item) => item.uid !== uploadFile.uid)
+    syncUploadFiles(uploadFileList.value)
+    return
+  }
+  if (uploadFile?.raw && !validateUploadFile(uploadFile.raw)) {
+    uploadRef.value?.handleRemove(uploadFile)
+    uploadFileList.value = uploadFiles.filter((item) => item.uid !== uploadFile.uid)
+    syncUploadFiles(uploadFileList.value)
+    return
+  }
+  syncUploadFiles(uploadFiles)
+}
+
+function handleFileRemove(uploadFile, uploadFiles) {
+  syncUploadFiles(uploadFiles)
 }
 
 async function handleUpload() {
-  if (!uploadForm.file) {
+  if (!uploadForm.files.length) {
     ElMessage.warning('请先选择文件')
+    return
+  }
+  if (uploadForm.files.length > MAX_UPLOAD_FILE_COUNT) {
+    ElMessage.error(`一次最多上传 ${MAX_UPLOAD_FILE_COUNT} 个文件`)
+    return
+  }
+  const invalidFile = uploadForm.files.find((file) => !validateUploadFile(file, false))
+  if (invalidFile) {
+    validateUploadFile(invalidFile, true)
     return
   }
   uploading.value = true
   try {
-    const check = await documentApi.checkUpload(uploadForm.file.name)
-    if (check.exists && !uploadForm.overwrite) {
-      ElMessage.warning('已存在同名文档，如需覆盖请勾选覆盖上传')
-      return
+    if (!uploadForm.overwrite) {
+      for (const file of uploadForm.files) {
+        const check = await documentApi.checkUpload(file.name)
+        if (check.exists) {
+          ElMessage.warning(`已存在同名文档“${file.name}”，如需覆盖请勾选覆盖上传`)
+          return
+        }
+      }
     }
-    await documentApi.upload(uploadForm)
-    ElMessage.success('文档上传成功')
+
+    if (uploadForm.files.length === 1) {
+      await documentApi.upload({ file: uploadForm.files[0], title: uploadForm.title, overwrite: uploadForm.overwrite })
+      ElMessage.success('文档上传成功')
+    } else {
+      const results = await documentApi.uploadBatch({ files: uploadForm.files, overwrite: uploadForm.overwrite })
+      const successCount = results.filter((item) => item.status !== 'error').length
+      const failCount = results.length - successCount
+      if (failCount) {
+        ElMessage.warning(`批量上传完成，成功 ${successCount} 个，失败 ${failCount} 个`)
+      } else {
+        ElMessage.success(`批量上传成功，共 ${successCount} 个文件`)
+      }
+    }
     uploadVisible.value = false
     uploadForm.title = ''
-    uploadForm.file = null
+    uploadForm.files = []
+    uploadFileList.value = []
     uploadForm.overwrite = false
+    uploadRef.value?.clearFiles()
     await loadDocuments()
   } finally {
     uploading.value = false
@@ -209,10 +275,13 @@ onMounted(loadDocuments)
         </el-form-item>
         <el-form-item label="选择文件">
           <el-upload
+            ref="uploadRef"
+            v-model:file-list="uploadFileList"
             :auto-upload="false"
-            :before-upload="beforeUpload"
-            :limit="1"
+            :accept="SUPPORTED_UPLOAD_ACCEPT"
+            multiple
             :on-change="handleFileChange"
+            :on-remove="handleFileRemove"
             :show-file-list="true"
           >
             <el-button type="primary" :icon="Upload">选择文件</el-button>
@@ -221,7 +290,7 @@ onMounted(loadDocuments)
         <el-form-item>
           <el-checkbox v-model="uploadForm.overwrite">若存在同名文档则覆盖</el-checkbox>
         </el-form-item>
-        <div class="placeholder-note">单个文件大小不能超过 200MB，上传前会自动校验。</div>
+        <div class="placeholder-note">支持 txt、md、json、csv、docx、pdf、xls、xlsx；一次最多 20 个文件，单个文件大小不能超过 200MB。</div>
       </el-form>
       <template #footer>
         <el-button @click="uploadVisible = false">取消</el-button>

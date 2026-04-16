@@ -13,6 +13,7 @@ def run_startup_migrations(engine: Engine) -> None:
     session_columns = _column_names(engine, "qa_session")
     chunk_columns = _column_names(engine, "kb_chunk")
     feedback_columns = _column_names(engine, "qa_feedback")
+    query_understanding_columns = _column_names(engine, "qa_query_understanding_log")
 
     with engine.begin() as conn:
         if "summary_json" not in session_columns:
@@ -25,3 +26,9 @@ def run_startup_migrations(engine: Engine) -> None:
 
         if "comment" not in feedback_columns:
             conn.execute(text("ALTER TABLE qa_feedback ADD COLUMN comment TEXT"))
+
+        if "search_terms_json" not in query_understanding_columns:
+            conn.execute(text("ALTER TABLE qa_query_understanding_log ADD COLUMN search_terms_json TEXT"))
+
+        if "search_queries_json" not in query_understanding_columns:
+            conn.execute(text("ALTER TABLE qa_query_understanding_log ADD COLUMN search_queries_json TEXT"))

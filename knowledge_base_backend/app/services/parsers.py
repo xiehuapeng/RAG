@@ -41,6 +41,10 @@ def parse_document_structure(file_path: Path) -> ParsedDocument:
     suffix = file_path.suffix.lower()
     if suffix == ".docx":
         return _parse_docx_structure(file_path)
+    if suffix == ".pdf":
+        return _parse_pdf_structure(file_path)
+    if suffix in {".xls", ".xlsx"}:
+        return _parse_excel_structure(file_path)
     if suffix == ".json":
         return _parse_json_structure(file_path)
     if suffix == ".md":
@@ -50,6 +54,122 @@ def parse_document_structure(file_path: Path) -> ParsedDocument:
     raise ParseError(
         f"暂不支持解析 {suffix} 文件，请优先上传 txt、md、json、csv、docx。"
     )
+
+
+def _parse_pdf_structure(file_path: Path) -> ParsedDocument:
+    try:
+        from pypdf import PdfReader
+    except ImportError as exc:  # pragma: no cover - dependency guard
+        raise ParseError("PDF parser dependency is missing: pypdf") from exc
+
+    try:
+        reader = PdfReader(str(file_path))
+    except Exception as exc:
+        raise ParseError("PDF 文件损坏或无法读取") from exc
+
+    sections: list[ParsedSection] = []
+    page_texts: list[str] = []
+    for index, page in enumerate(reader.pages, start=1):
+        try:
+            text = (page.extract_text() or "").strip()
+        except Exception:
+            text = ""
+        if not text:
+            continue
+        page_texts.append(f"第 {index} 页\n{text}")
+        sections.append(
+            ParsedSection(
+                id=f"page-{index}",
+                title=f"第 {index} 页",
+                level=1,
+                order_index=index,
+                blocks=[{"type": "paragraph", "text": text}],
+            )
+        )
+
+    full_text = "\n\n".join(page_texts).strip()
+    if not full_text:
+        raise ParseError("PDF 未提取到可用文本，扫描件或图片型 PDF 暂不支持 OCR")
+    return ParsedDocument(full_text=full_text, sections=sections)
+
+
+def _parse_excel_structure(file_path: Path) -> ParsedDocument:
+    suffix = file_path.suffix.lower()
+    if suffix == ".xlsx":
+        sheets = _read_xlsx_sheets(file_path)
+    else:
+        sheets = _read_xls_sheets(file_path)
+
+    sections: list[ParsedSection] = []
+    sheet_texts: list[str] = []
+    for index, (sheet_name, rows) in enumerate(sheets, start=1):
+        lines = ["\t".join(_format_cell(cell) for cell in row).rstrip() for row in rows]
+        lines = [line for line in lines if line.strip()]
+        if not lines:
+            continue
+        text = "\n".join(lines).strip()
+        sheet_texts.append(f"# {sheet_name}\n{text}")
+        sections.append(
+            ParsedSection(
+                id=f"sheet-{index}",
+                title=sheet_name,
+                level=1,
+                order_index=index,
+                blocks=[{"type": "paragraph", "text": text}],
+            )
+        )
+
+    full_text = "\n\n".join(sheet_texts).strip()
+    if not full_text:
+        raise ParseError("Excel 文件未提取到可用文本")
+    return ParsedDocument(full_text=full_text, sections=sections)
+
+
+def _read_xlsx_sheets(file_path: Path) -> list[tuple[str, list[list[Any]]]]:
+    try:
+        from openpyxl import load_workbook
+    except ImportError as exc:  # pragma: no cover - dependency guard
+        raise ParseError("Excel parser dependency is missing: openpyxl") from exc
+
+    try:
+        workbook = load_workbook(file_path, read_only=True, data_only=True)
+    except Exception as exc:
+        raise ParseError("XLSX 文件损坏或无法读取") from exc
+
+    try:
+        result: list[tuple[str, list[list[Any]]]] = []
+        for worksheet in workbook.worksheets:
+            rows = [list(row) for row in worksheet.iter_rows(values_only=True)]
+            result.append((worksheet.title, rows))
+        return result
+    finally:
+        workbook.close()
+
+
+def _read_xls_sheets(file_path: Path) -> list[tuple[str, list[list[Any]]]]:
+    try:
+        import xlrd
+    except ImportError as exc:  # pragma: no cover - dependency guard
+        raise ParseError("Excel parser dependency is missing: xlrd") from exc
+
+    try:
+        workbook = xlrd.open_workbook(str(file_path))
+    except Exception as exc:
+        raise ParseError("XLS 文件损坏或无法读取") from exc
+
+    result: list[tuple[str, list[list[Any]]]] = []
+    for worksheet in workbook.sheets():
+        rows = [worksheet.row_values(row_index) for row_index in range(worksheet.nrows)]
+        result.append((worksheet.name, rows))
+    return result
+
+
+def _format_cell(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return str(value).strip()
 
 
 def _parse_plain_structure(file_path: Path) -> ParsedDocument:

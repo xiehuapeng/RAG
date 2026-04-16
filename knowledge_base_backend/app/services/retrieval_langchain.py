@@ -24,6 +24,23 @@ KEYWORD_CANDIDATE_MULTIPLIER = 4
 RELEVANCE_SCORE_THRESHOLD = 0.50
 RELEVANCE_KEYWORD_FALLBACK_THRESHOLD = 0.20
 RELEVANCE_VECTOR_FALLBACK_THRESHOLD = 0.55
+LOW_VALUE_COVERAGE_TERMS = {"开户", "批量开户", "设置", "选择", "方法", "怎么", "如何"}
+GENERIC_COVERAGE_TERMS = {
+    *LOW_VALUE_COVERAGE_TERMS,
+    "物联网卡",
+    "物联卡",
+    "开卡",
+    "修改",
+    "订单",
+}
+PRIMARY_SOURCE_QUOTAS = {
+    "raw_query": 2,
+    "rewrite_query": 1,
+}
+EXPANSION_SOURCE_QUOTAS = {
+    "search_query": 2,
+    "search_term": 1,
+}
 
 
 def _to_json(data: object) -> str:
@@ -137,6 +154,20 @@ def _freshness_score(updated_at: datetime | None) -> float:
     if days <= 90:
         return 0.01
     return 0.0
+
+
+def _is_structure_only_content(content: str, metadata: dict) -> bool:
+    normalized = " ".join(str(content or "").split())
+    if not normalized:
+        return True
+
+    section_title = " ".join(str(metadata.get("section_title") or "").split())
+    chapter_path = " ".join(str(metadata.get("chapter_path") or "").split())
+    if normalized in {section_title, chapter_path}:
+        return True
+    if chapter_path and normalized == chapter_path.replace(" / ", " "):
+        return True
+    return False
 
 
 def _understanding_term_features(
@@ -283,6 +314,8 @@ def _rerank_candidates(candidates: list[dict], understanding_terms: list[str] | 
     for candidate in candidates:
         chunk = candidate["chunk"]
         metadata = _load_chunk_metadata(chunk)
+        content = candidate["content"] or chunk.content
+        is_structure_only = _is_structure_only_content(content, metadata)
         features = candidate["features"]
         keyword_score = candidate["keyword_score"]
         vector_score = candidate["vector_score"]
@@ -317,7 +350,7 @@ def _rerank_candidates(candidates: list[dict], understanding_terms: list[str] | 
                 "chunk_index": chunk.chunk_index,
                 "section_title": metadata.get("section_title"),
                 "chapter_path": metadata.get("chapter_path"),
-                "content": candidate["content"] or chunk.content,
+                "content": content,
                 "score": round(min(final_score, 1.0), 4),
                 "keyword_score": round(keyword_score, 4),
                 "vector_score": round(vector_score, 4),
@@ -326,6 +359,11 @@ def _rerank_candidates(candidates: list[dict], understanding_terms: list[str] | 
                 "title_hit": bool(features.get("title_overlap_count", 0)),
                 "freshness_bonus": round(freshness_bonus, 4),
                 "understanding_bonus": round(understanding_bonus, 4),
+                "is_structure_only": is_structure_only,
+                "query_sources": sorted(candidate.get("query_sources") or []),
+                "source_queries": candidate.get("source_queries") or [],
+                "source_ranks": candidate.get("source_ranks") or {},
+                "best_source": candidate.get("best_source"),
                 "chroma_id": chunk.chroma_id,
             }
         )
@@ -344,6 +382,8 @@ def _rerank_candidates(candidates: list[dict], understanding_terms: list[str] | 
 
 
 def _passes_relevance_gate(candidate: dict) -> bool:
+    if bool(candidate.get("is_structure_only")):
+        return False
     if float(candidate.get("score") or 0.0) >= RELEVANCE_SCORE_THRESHOLD:
         return True
     if bool(candidate.get("title_hit")):
@@ -356,6 +396,255 @@ def _passes_relevance_gate(candidate: dict) -> bool:
     return False
 
 
+def _candidate_text(candidate: dict) -> str:
+    parts = [
+        candidate.get("content") or "",
+        candidate.get("section_title") or "",
+        candidate.get("chapter_path") or "",
+        candidate.get("document_title") or "",
+    ]
+    return "\n".join(str(part) for part in parts if part)
+
+
+def _coverage_terms(terms: list[str]) -> list[str]:
+    unique_terms = _unique_keep_order(terms)
+    specific_terms = [term for term in unique_terms if term not in GENERIC_COVERAGE_TERMS]
+    fallback_terms = [term for term in unique_terms if term in GENERIC_COVERAGE_TERMS]
+    specific_terms.sort(key=len, reverse=True)
+    return specific_terms + fallback_terms[:2]
+
+
+def _coverage_match_score(candidate: dict, term: str) -> float:
+    content = str(candidate.get("content") or "")
+    section_title = str(candidate.get("section_title") or "")
+    chapter_path = str(candidate.get("chapter_path") or "")
+    searchable = _candidate_text(candidate)
+    if term not in searchable:
+        return -1.0
+
+    coverage_score = float(candidate.get("score") or 0.0)
+    if term in content:
+        coverage_score += 0.4
+    if term in section_title or term in chapter_path:
+        coverage_score += 0.35
+    if "操作步骤" in section_title or "操作步骤" in chapter_path:
+        coverage_score += 0.3
+    elif "业务规则" in section_title or "业务规则" in chapter_path:
+        coverage_score -= 0.25
+    if term in content and "设置" in content:
+        coverage_score += 0.2
+    if term in content and ("选择" in content or "选为" in content):
+        coverage_score += 0.15
+    if term == "折扣" and ("是否打折" in content or "折扣率" in content or "折扣价格" in content):
+        coverage_score += 0.35
+    return coverage_score
+
+
+def _select_top_results(
+    reranked_candidates: list[dict],
+    top_k: int,
+    coverage_terms: list[str] | None = None,
+) -> list[dict]:
+    eligible_candidates = [candidate for candidate in reranked_candidates if _passes_relevance_gate(candidate)]
+    if not coverage_terms:
+        return eligible_candidates[:top_k]
+
+    selected: list[dict] = []
+    selected_ids: set[int] = set()
+
+    for term in _coverage_terms(coverage_terms):
+        best_candidate = None
+        best_score = -1.0
+        for candidate in eligible_candidates:
+            chunk_id = int(candidate.get("chunk_id") or 0)
+            if chunk_id in selected_ids:
+                continue
+            match_score = _coverage_match_score(candidate, term)
+            if match_score > best_score:
+                best_candidate = candidate
+                best_score = match_score
+
+        if best_candidate is not None and best_score >= 0:
+            selected.append(best_candidate)
+            selected_ids.add(int(best_candidate.get("chunk_id") or 0))
+            if len(selected) >= top_k:
+                return selected
+
+    for candidate in eligible_candidates:
+        chunk_id = int(candidate.get("chunk_id") or 0)
+        if chunk_id in selected_ids:
+            continue
+        selected.append(candidate)
+        if len(selected) >= top_k:
+            break
+
+    return selected
+
+
+def _source_rank(candidate: dict, source: str) -> int:
+    ranks = candidate.get("source_ranks") or {}
+    try:
+        return int(ranks.get(source, 999999))
+    except (TypeError, ValueError):
+        return 999999
+
+
+def _candidate_source_score(candidate: dict, source: str) -> tuple:
+    source_queries = " ".join(str(query) for query in candidate.get("source_queries") or [])
+    content = str(candidate.get("content") or "")
+    source_query_hit = 1 if source_queries and any(part and part in content for part in source_queries.split()) else 0
+    return (
+        source_query_hit,
+        -_source_rank(candidate, source),
+        float(candidate.get("score") or 0.0),
+        float(candidate.get("keyword_score") or 0.0),
+        float(candidate.get("vector_score") or 0.0),
+    )
+
+
+def _pick_from_source_bucket(
+    candidates: list[dict],
+    source: str,
+    quota: int,
+    selected_ids: set[int],
+) -> list[dict]:
+    if quota <= 0:
+        return []
+
+    source_candidates = [
+        candidate
+        for candidate in candidates
+        if source in set(candidate.get("query_sources") or [])
+        and int(candidate.get("chunk_id") or 0) not in selected_ids
+    ]
+    source_candidates.sort(key=lambda candidate: _candidate_source_score(candidate, source), reverse=True)
+    picked: list[dict] = []
+    for candidate in source_candidates:
+        picked.append(candidate)
+        selected_ids.add(int(candidate.get("chunk_id") or 0))
+        if len(picked) >= quota:
+            break
+    return picked
+
+
+def _select_bucketed_top_results(
+    reranked_candidates: list[dict],
+    top_k: int,
+    coverage_terms: list[str] | None = None,
+) -> list[dict]:
+    eligible_candidates = [candidate for candidate in reranked_candidates if _passes_relevance_gate(candidate)]
+    selected: list[dict] = []
+    selected_ids: set[int] = set()
+
+    for source, quota in PRIMARY_SOURCE_QUOTAS.items():
+        for candidate in _pick_from_source_bucket(eligible_candidates, source, quota, selected_ids):
+            selected.append(candidate)
+            if len(selected) >= top_k:
+                return selected
+
+    for term in _coverage_terms(coverage_terms or []):
+        best_candidate = None
+        best_score = -1.0
+        for candidate in eligible_candidates:
+            chunk_id = int(candidate.get("chunk_id") or 0)
+            if chunk_id in selected_ids:
+                continue
+            match_score = _coverage_match_score(candidate, term)
+            if match_score > best_score:
+                best_candidate = candidate
+                best_score = match_score
+
+        if best_candidate is not None and best_score >= 0:
+            selected.append(best_candidate)
+            selected_ids.add(int(best_candidate.get("chunk_id") or 0))
+            if len(selected) >= top_k:
+                return selected
+
+    for source, quota in EXPANSION_SOURCE_QUOTAS.items():
+        for candidate in _pick_from_source_bucket(eligible_candidates, source, quota, selected_ids):
+            selected.append(candidate)
+            if len(selected) >= top_k:
+                return selected
+
+    for candidate in eligible_candidates:
+        chunk_id = int(candidate.get("chunk_id") or 0)
+        if chunk_id in selected_ids:
+            continue
+        selected.append(candidate)
+        if len(selected) >= top_k:
+            break
+
+    return selected
+
+
+def _query_specs_from_understanding(understanding: QueryUnderstandingResult) -> list[tuple[str, str]]:
+    specs: list[tuple[str, str]] = [
+        ("rewrite_query", understanding.rewrite_query),
+        ("raw_query", understanding.raw_query),
+    ]
+    specs.extend(("keyword", term) for term in understanding.keywords_hit)
+    specs.extend(("entity", term) for term in understanding.entities)
+    specs.extend(("search_query", query) for query in getattr(understanding, "search_queries", []))
+    specs.extend(("search_term", term) for term in getattr(understanding, "search_terms", []))
+
+    seen: set[tuple[str, str]] = set()
+    deduped: list[tuple[str, str]] = []
+    for source, query in specs:
+        value = str(query or "").strip()
+        if not value:
+            continue
+        key = (source, value)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append((source, value))
+    return deduped
+
+
+def _tag_candidate_source(candidate: dict, *, source: str, query: str, rank: int) -> dict:
+    candidate["query_sources"] = {source}
+    candidate["source_queries"] = [query]
+    candidate["source_ranks"] = {source: rank}
+    candidate["best_source"] = source
+    return candidate
+
+
+def _merge_sourced_candidate(merged_candidates: dict[int, dict], candidate: dict) -> dict:
+    chunk = candidate["chunk"]
+    existing = merged_candidates.get(chunk.id)
+    if existing is None:
+        merged_candidates[chunk.id] = candidate
+        return candidate
+
+    existing["channels"].update(candidate["channels"])
+    existing["keyword_score"] = max(existing["keyword_score"], candidate["keyword_score"])
+    existing["vector_score"] = max(existing["vector_score"], candidate["vector_score"])
+    if existing["distance"] is None or (
+        candidate["distance"] is not None and candidate["distance"] < existing["distance"]
+    ):
+        existing["distance"] = candidate["distance"]
+    if candidate["content"]:
+        existing["content"] = candidate["content"]
+    existing["features"].update(candidate["features"])
+
+    existing.setdefault("query_sources", set()).update(candidate.get("query_sources") or [])
+    source_queries = existing.setdefault("source_queries", [])
+    for source_query in candidate.get("source_queries") or []:
+        if source_query not in source_queries:
+            source_queries.append(source_query)
+
+    source_ranks = existing.setdefault("source_ranks", {})
+    for source, rank in (candidate.get("source_ranks") or {}).items():
+        current_rank = source_ranks.get(source)
+        source_ranks[source] = rank if current_rank is None else min(current_rank, rank)
+
+    best_source = existing.get("best_source")
+    if best_source is None or _source_rank(existing, str(best_source)) > min(source_ranks.values()):
+        existing["best_source"] = min(source_ranks, key=source_ranks.get)
+
+    return existing
+
+
 def retrieve(db: Session, session_id: int | None, query: str, top_k: int = RETRIEVE_TOP_K) -> list[dict]:
     query_tokens = tokenize(query)
     logger.info(
@@ -366,12 +655,9 @@ def retrieve(db: Session, session_id: int | None, query: str, top_k: int = RETRI
         _to_json(query_tokens),
     )
     keyword_candidates = _keyword_recall(db, query, query_tokens, top_k)
-    print(f"Keyword candidates: {keyword_candidates}")
     vector_candidates = _vector_recall(db, query, top_k)
-    print(f"vector_candidates : {vector_candidates}")
     merged_candidates = _merge_candidates(keyword_candidates, vector_candidates)
     reranked_candidates = _rerank_candidates(merged_candidates)
-    print(f"merged_candidates : {merged_candidates}, reranked_candidates : {reranked_candidates}")
     retrieved_snapshot = [
         {
             "chunk_id": candidate["chunk"].id,
@@ -387,7 +673,7 @@ def retrieve(db: Session, session_id: int | None, query: str, top_k: int = RETRI
     ]
 
     filtered_candidates = [candidate for candidate in reranked_candidates if _passes_relevance_gate(candidate)]
-    top_results = filtered_candidates[:top_k]
+    top_results = _select_top_results(reranked_candidates, top_k)
     logger.info(
         "[qa.retrieve.response] session_id=%s query=%s keyword_candidates=%s vector_candidates=%s merged_candidates=%s filtered_candidates=%s top_results=%s",
         session_id,
@@ -417,46 +703,28 @@ def retrieve_with_understanding(
     understanding: QueryUnderstandingResult,
     top_k: int = RETRIEVE_TOP_K,
 ) -> list[dict]:
-    queries = _unique_keep_order(
-        [
-            understanding.rewrite_query,
-            understanding.raw_query,
-            *understanding.keywords_hit,
-            *understanding.entities,
-        ]
-    )
-    if not queries:
-        queries = [understanding.raw_query]
+    query_specs = _query_specs_from_understanding(understanding)
+    if not query_specs:
+        query_specs = [("raw_query", understanding.raw_query)]
 
     merged_candidates: dict[int, dict] = {}
     retrieved_snapshot: list[dict] = []
+    recall_top_k = max(top_k * 2, 16)
 
-    for query in queries:
+    for source, query in query_specs:
         query_tokens = tokenize(query)
-        keyword_candidates = _keyword_recall(db, query, query_tokens, top_k)
-        vector_candidates = _vector_recall(db, query, top_k)
+        keyword_candidates = _keyword_recall(db, query, query_tokens, recall_top_k)
+        vector_candidates = _vector_recall(db, query, recall_top_k)
         per_query_candidates = _merge_candidates(keyword_candidates, vector_candidates)
 
-        for candidate in per_query_candidates:
+        for rank, candidate in enumerate(per_query_candidates, start=1):
+            _tag_candidate_source(candidate, source=source, query=query, rank=rank)
             chunk = candidate["chunk"]
-            existing = merged_candidates.get(chunk.id)
-            if existing is None:
-                merged_candidates[chunk.id] = candidate
-                existing = merged_candidates[chunk.id]
-            else:
-                existing["channels"].update(candidate["channels"])
-                existing["keyword_score"] = max(existing["keyword_score"], candidate["keyword_score"])
-                existing["vector_score"] = max(existing["vector_score"], candidate["vector_score"])
-                if existing["distance"] is None or (
-                    candidate["distance"] is not None and candidate["distance"] < existing["distance"]
-                ):
-                    existing["distance"] = candidate["distance"]
-                if candidate["content"]:
-                    existing["content"] = candidate["content"]
-                existing["features"].update(candidate["features"])
+            _merge_sourced_candidate(merged_candidates, candidate)
 
             retrieved_snapshot.append(
                 {
+                    "source": source,
                     "query": query,
                     "chunk_id": chunk.id,
                     "document_id": chunk.document_id,
@@ -469,10 +737,17 @@ def retrieve_with_understanding(
                 }
             )
 
-    understanding_terms = _unique_keep_order([*understanding.keywords_hit, *understanding.entities])
+    understanding_terms = _unique_keep_order(
+        [
+            *getattr(understanding, "search_terms", []),
+            *getattr(understanding, "search_queries", []),
+            *understanding.keywords_hit,
+            *understanding.entities,
+        ]
+    )
     reranked_candidates = _rerank_candidates(list(merged_candidates.values()), understanding_terms=understanding_terms)
     filtered_candidates = [candidate for candidate in reranked_candidates if _passes_relevance_gate(candidate)]
-    top_results = filtered_candidates[:top_k]
+    top_results = _select_bucketed_top_results(reranked_candidates, top_k, coverage_terms=understanding_terms)
 
     db.add(
         RetrievalLog(
@@ -483,6 +758,8 @@ def retrieve_with_understanding(
                     "rewrite_query": understanding.rewrite_query,
                     "keywords": understanding.keywords_hit,
                     "entities": understanding.entities,
+                    "search_terms": getattr(understanding, "search_terms", []),
+                    "search_queries": getattr(understanding, "search_queries", []),
                     "filters": understanding.filters,
                 },
                 ensure_ascii=False,

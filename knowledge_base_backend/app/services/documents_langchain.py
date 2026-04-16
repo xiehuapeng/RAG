@@ -9,7 +9,7 @@ from typing import Any
 from fastapi import HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
-from app.config import MAX_UPLOAD_SIZE, SUPPORTED_EXTENSIONS, UPLOAD_DIR
+from app.config import MAX_UPLOAD_FILE_COUNT, MAX_UPLOAD_SIZE, SUPPORTED_EXTENSIONS, UPLOAD_DIR
 from app.models import Chunk, Document
 from app.services.langchain_runtime import annotate_split_documents, build_langchain_documents
 from app.services.parsers import ParseError, ParsedSection, parse_document, parse_document_structure
@@ -78,7 +78,13 @@ def validate_upload(file: UploadFile, payload: bytes) -> None:
     # 服务端兜底校验上传格式和体积，避免前端校验被绕过。
     suffix = Path(file.filename or "").suffix.lower()
     if suffix not in SUPPORTED_EXTENSIONS:
-        raise HTTPException(status_code=400, detail={"code": 3001, "message": "unsupported file format"})
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": 3001,
+                "message": "暂不支持该文件格式，请上传 txt、md、json、csv、docx、pdf、xls、xlsx 文件",
+            },
+        )
     if len(payload) > MAX_UPLOAD_SIZE:
         raise HTTPException(status_code=400, detail={"code": 3002, "message": "file too large, max 200MB"})
 
@@ -162,7 +168,10 @@ def _build_chunk_specs(file_path: Path, full_text: str) -> list[ChunkSpec]:
         content = item.page_content.strip()
         if not content:
             continue
-        specs.append(ChunkSpec(content=content, metadata=dict(item.metadata)))
+        metadata = dict(item.metadata)
+        if _is_structure_only_chunk(content, metadata):
+            continue
+        specs.append(ChunkSpec(content=content, metadata=metadata))
 
     if specs:
         return specs
@@ -188,6 +197,22 @@ def _build_chunk_specs(file_path: Path, full_text: str) -> list[ChunkSpec]:
         )
         for index, piece in enumerate(pieces)
     ]
+
+
+def _is_structure_only_chunk(content: str, metadata: dict[str, Any]) -> bool:
+    normalized = " ".join(content.split())
+    if not normalized:
+        return True
+
+    section_title = " ".join(str(metadata.get("section_title") or "").split())
+    chapter_path = " ".join(str(metadata.get("chapter_path") or "").split())
+    if normalized in {section_title, chapter_path}:
+        return True
+
+    if chapter_path and normalized == chapter_path.replace(" / ", " "):
+        return True
+
+    return False
 
 
 def _replace_document_chunks(db: Session, document: Document, chunk_specs: list[ChunkSpec]) -> None:
@@ -334,6 +359,12 @@ def save_upload_batch(
     overwrite: bool = False,
 ) -> list[dict]:
     # 批量上传按文件逐个处理，单个失败不会中断整个批次。
+    if len(files) > MAX_UPLOAD_FILE_COUNT:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": 3006, "message": f"一次最多上传 {MAX_UPLOAD_FILE_COUNT} 个文件"},
+        )
+
     results: list[dict] = []
     for file in files:
         try:
