@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from functools import lru_cache
+from time import monotonic
 from typing import Any
 
 import httpx
@@ -15,12 +17,18 @@ from app.config import (
     QUERY_UNDERSTANDING_FALLBACK_MODEL,
     QUERY_UNDERSTANDING_FALLBACK_PROVIDER,
     QUERY_UNDERSTANDING_MODEL,
+    QUERY_UNDERSTANDING_NO_THINK,
     QUERY_UNDERSTANDING_PROVIDER,
     QUERY_UNDERSTANDING_TIMEOUT_SECONDS,
+    QUERY_UNDERSTANDING_TOTAL_TIMEOUT_SECONDS,
     SEMANTIC_CONFIDENCE_THRESHOLD,
 )
+from app.qa_logging import emit_qa_log
 from app.schemas import QueryUnderstandingResult
-from app.services.minimax import chat_completion
+from app.services.llm_client import chat_completion
+
+
+logger = logging.getLogger(__name__)
 
 
 BUSINESS_KEYWORDS_STRONG = [
@@ -278,6 +286,15 @@ class QueryUnderstandingService:
         self.follow_up_max_turns = max(FOLLOW_UP_MAX_TURNS, 1)
         self.semantic_confidence_threshold = max(0.0, min(SEMANTIC_CONFIDENCE_THRESHOLD, 1.0))
         self.timeout_seconds = max(5.0, QUERY_UNDERSTANDING_TIMEOUT_SECONDS)
+        self.total_timeout_seconds = max(5.0, QUERY_UNDERSTANDING_TOTAL_TIMEOUT_SECONDS)
+
+    def _model_for_provider(self, provider: str) -> str:
+        normalized = (provider or "").strip().lower()
+        if normalized == self.provider:
+            return self.model
+        if normalized == self.fallback_provider:
+            return self.fallback_model
+        return self.model
 
     def detect_keywords(self, query: str) -> dict[str, Any]:
         strong_hits = [keyword for keyword in BUSINESS_KEYWORDS_STRONG if self._keyword_in_query(keyword, query)]
@@ -430,6 +447,7 @@ class QueryUnderstandingService:
     def understand_with_ollama(
         self,
         *,
+        model_name: str,
         query: str,
         history: list[dict[str, Any]],
         session_summary: dict[str, Any],
@@ -437,19 +455,21 @@ class QueryUnderstandingService:
         follow_up: dict[str, Any],
         route_rules: dict[str, Any],
         fallback_used: bool,
+        timeout_seconds: float | None = None,
     ) -> QueryUnderstandingResult:
         prompt = self._build_prompt(query, history, session_summary, keyword_hits, follow_up, route_rules)
-        response = httpx.post(
-            f"{OLLAMA_BASE_URL.rstrip('/')}/api/generate",
-            json={
-                "model": self.model,
-                "prompt": prompt,
-                "stream": False,
-                "format": "json",
-                "options": {"temperature": 0},
-            },
-            timeout=self.timeout_seconds,
-        )
+        timeout = self.timeout_seconds if timeout_seconds is None else timeout_seconds
+        with httpx.Client(timeout=timeout, trust_env=False) as client:
+            response = client.post(
+                f"{OLLAMA_BASE_URL.rstrip('/')}/api/generate",
+                json={
+                    "model": model_name,
+                    "prompt": prompt,
+                    "stream": False,
+                    "format": "json",
+                    "options": {"temperature": 0},
+                },
+            )
         response.raise_for_status()
         payload = response.json()
         parsed = _safe_extract_json(str(payload.get("response") or ""))
@@ -457,13 +477,14 @@ class QueryUnderstandingService:
             parsed,
             raw_query=query,
             provider="ollama",
-            model=self.model,
+            model=model_name,
             fallback_used=fallback_used,
         )
 
-    def understand_with_minimax(
+    def understand_with_remote(
         self,
         *,
+        model_name: str,
         query: str,
         history: list[dict[str, Any]],
         session_summary: dict[str, Any],
@@ -471,6 +492,7 @@ class QueryUnderstandingService:
         follow_up: dict[str, Any],
         route_rules: dict[str, Any],
         fallback_used: bool,
+        timeout_seconds: float | None = None,
     ) -> QueryUnderstandingResult:
         prompt = self._build_prompt(query, history, session_summary, keyword_hits, follow_up, route_rules)
         messages = [
@@ -483,13 +505,22 @@ class QueryUnderstandingService:
             },
             {"role": "user", "content": prompt},
         ]
-        text = chat_completion(messages, model=self.fallback_model, temperature=0, max_output_tokens=1024)
+        text = chat_completion(
+            messages,
+            model=model_name,
+            temperature=0,
+            max_output_tokens=4096,
+            timeout_seconds=self.timeout_seconds if timeout_seconds is None else timeout_seconds,
+            # DeepSeek 网关不支持 enable_thinking；用 thinking.type=disabled 关闭思考链，
+            # 避免 reasoning 占用输出预算导致正文为空。
+            extra_body={"thinking": {"type": "disabled"}} if QUERY_UNDERSTANDING_NO_THINK else None,
+        )
         parsed = _safe_extract_json(text)
         return self._result_from_model_payload(
             parsed,
             raw_query=query,
-            provider="minimax",
-            model=self.fallback_model,
+            provider="remote",
+            model=model_name,
             fallback_used=fallback_used,
         )
 
@@ -507,10 +538,19 @@ class QueryUnderstandingService:
         if self.fallback_provider and self.fallback_provider not in providers:
             providers.append(self.fallback_provider)
 
+        deadline = monotonic() + self.total_timeout_seconds
         for index, provider in enumerate(providers):
+            remaining = deadline - monotonic()
+            if remaining <= 0:
+                logger.warning("Query understanding timeout budget exhausted; using rules")
+                break
+            timeout = min(self.timeout_seconds, remaining)
             try:
+                model_name = self._model_for_provider(provider)
                 if provider == "ollama":
                     return self.understand_with_ollama(
+                        timeout_seconds=timeout,
+                        model_name=model_name,
                         query=query,
                         history=history,
                         session_summary=session_summary,
@@ -519,8 +559,10 @@ class QueryUnderstandingService:
                         route_rules=route_rules,
                         fallback_used=index > 0,
                     )
-                if provider == "minimax":
-                    return self.understand_with_minimax(
+                if provider == "remote":
+                    return self.understand_with_remote(
+                        timeout_seconds=timeout,
+                        model_name=model_name,
                         query=query,
                         history=history,
                         session_summary=session_summary,
@@ -529,7 +571,14 @@ class QueryUnderstandingService:
                         route_rules=route_rules,
                         fallback_used=index > 0,
                     )
-            except Exception:
+            except Exception as exc:
+                model_name = self._model_for_provider(provider)
+                error_message = (
+                    f"provider={provider} model={model_name} fallback_used={index > 0} "
+                    f"error={type(exc).__name__}: {exc}"
+                )
+                logger.warning("Query understanding provider failed: %s", error_message, exc_info=True)
+                emit_qa_log("问题理解失败", error_message)
                 continue
         return None
 

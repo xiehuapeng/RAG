@@ -1,0 +1,1002 @@
+[
+{
+"id": "qa_001",
+"name": "省预受理全流程操作",
+"question": "我现在要帮客户走省预受理流程开一批物联卡，从提交到最后开户完整怎么操作？",
+"expected_keywords": ["提交预受理", "审核", "转正式订单", "批量开户", "实名验证"],
+"optional_keywords": ["附件上传", "资料复用"],
+"threshold": 0.67,
+"category": "operation_steps",
+"source_basis": "CMIOT-B64 整体流程"
+},
+{
+"id": "qa_002",
+"name": "预受理支持业务与跳转规则",
+"question": "预受理里批量开户和群组开户，转正式单的时候分别跳到哪个菜单？有什么区别？",
+"expected_keywords": ["批量开户", "集团群组开户", "跳过商品选择"],
+"optional_keywords": [],
+"threshold": 0.75,
+"category": "operation_steps",
+"source_basis": "CMIOT-B64 4 转单跳转规则"
+},
+{
+"id": "qa_003",
+"name": "责任人经办人实名验证要求",
+"question": "预受理转正式订单前，责任人与经办人必须做哪些验证？一个不过会怎样？",
+"expected_keywords": ["实名查验", "人证一致比对", "任一失败不允许转单"],
+"optional_keywords": ["开关控制"],
+"threshold": 0.75,
+"category": "restrictions",
+"source_basis": "CMIOT-B64 3.2.3 实名验证要求"
+},
+{
+"id": "qa_004",
+"name": "智能远控场景号段强制规则",
+"question": "客户要办智能远控场景，开卡时号段有强制要求吗？不满足系统会拦吗？",
+"expected_keywords": ["低空智联网 CMIOT", "强制校验", "不满足无法提交"],
+"optional_keywords": [],
+"threshold": 0.75,
+"category": "restrictions",
+"source_basis": "CMIOT-B64 4 业务规则"
+},
+{
+"id": "qa_005",
+"name": "非定向大流量预受理开通条件",
+"question": "客户要办非定向大流量业务，我在创建预受理单时必须满足哪些条件才能提交？",
+"expected_keywords": ["报备", "自有主商品", "自有产品"],
+"optional_keywords": ["无线上网签约"],
+"threshold": 0.67,
+"category": "restrictions",
+"source_basis": "CMIOT-B64 4 业务规则"
+},
+{
+"id": "qa_006",
+"name": "无线上网类服务允许场景",
+"question": "我给客户开户时想把无线上网类服务设为是，哪些场景允许？选错会报什么错？",
+"expected_keywords": ["无线上网", "车载 wifi 设备", "仅这两类允许"],
+"optional_keywords": ["12010", "11006"],
+"threshold": 0.75,
+"category": "error_handling",
+"source_basis": "CMIOT-B64 4 业务规则"
+},
+{
+"id": "qa_007",
+"name": "开卡一致性参数规则",
+"question": "开卡一致性这个参数开启和关闭分别有什么影响？哪些省份默认开启？",
+"expected_keywords": ["广东开启", "其他关闭", "置灰不可改", "一致性校验"],
+"optional_keywords": [],
+"threshold": 0.75,
+"category": "restrictions",
+"source_basis": "CMIOT-B64 4 开卡一致性"
+},
+{
+"id": "qa_008",
+"name": "定向语音开通场景与搭载销售",
+"question": "客户想开通定向语音功能，哪些场景允许开？开通时搭载销售必须设为什么？",
+"expected_keywords": ["可穿戴", "医疗", "公共安全", "车载", "必须是"],
+"optional_keywords": [],
+"threshold": 0.75,
+"category": "restrictions",
+"source_basis": "CMIOT-B64 4 应用场景校验"
+},
+{
+"id": "qa_009",
+"name": "预受理附件格式与审核顺序",
+"question": "预受理单上传附件支持什么格式、大小？是不是必须附件先审核通过才能提交？",
+"expected_keywords": ["zip", "rar", "10M", "附件先审核通过"],
+"optional_keywords": [],
+"threshold": 0.75,
+"category": "required_materials",
+"source_basis": "CMIOT-B64 3.2.2 附件要求"
+},
+{
+"id": "qa_010",
+"name": "转单批开回填与禁用项",
+"question": "预受理转批量开户页面，哪些信息会自动回填？哪个功能是被禁用的？",
+"expected_keywords": ["集团信息", "主商品", "项目信息", "APP 预受理禁用"],
+"optional_keywords": ["置灰不可改"],
+"threshold": 0.75,
+"category": "operation_steps",
+"source_basis": "CMIOT-B64 3.2.3 批开回填规则"
+},
+{
+"id": "qa_011",
+"name": "DICT 编码无账户处理方式",
+"question": "转单时提示 DICT 全网项目编码没有对应账户，系统怎么提示？我该怎么处理？",
+"expected_keywords": ["无关联账户", "新建账户", "确认编码有效性"],
+"optional_keywords": [],
+"threshold": 0.75,
+"category": "error_handling",
+"source_basis": "CMIOT-B64 3.2.3 DICT 账户提示"
+},
+{
+"id": "qa_012",
+"name": "预受理增值商品处理逻辑",
+"question": "为什么预受理里的增值商品不能直接带到正式单？我应该怎么处理？",
+"expected_keywords": ["重新录入", "系统校验", "依赖互斥判断"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "operation_steps",
+"source_basis": "CMIOT-B64 3.2.3 增值商品处理"
+},
+{
+"id": "qa_013",
+"name": "测试卡白名单与标识规则",
+"question": "我要给客户开测试卡，是不是必须先加白名单？测试用卡标识默认是什么？能改吗？",
+"expected_keywords": ["测试卡集团白名单", "默认是", "不可修改"],
+"optional_keywords": [],
+"threshold": 0.75,
+"category": "restrictions",
+"source_basis": "CMIOT-B65 2.4.1 白名单与标识规则"
+},
+{
+"id": "qa_014",
+"name": "测试卡必填信息与范围限制",
+"question": "办理测试卡开户，哪些信息是必填的？使用期限和额度范围分别是多少？",
+"expected_keywords": ["用途", "范围", "期限", "额度", "1-90 天", "1-500 元"],
+"optional_keywords": [],
+"threshold": 0.75,
+"category": "required_materials",
+"source_basis": "CMIOT-B65 2.4.1 测试卡必填项"
+},
+{
+"id": "qa_015",
+"name": "测试卡账户与信用度校验",
+"question": "测试卡账户是我手动建还是系统自动建？什么时候会校验信用度？",
+"expected_keywords": ["后台自动创建", "已激活", "立即生效校验"],
+"optional_keywords": ["一对一账户"],
+"threshold": 0.75,
+"category": "account_billing",
+"source_basis": "CMIOT-B65 2.4.1 账户与信用度规则"
+},
+{
+"id": "qa_016",
+"name": "测试卡群组过户生命周期限制",
+"question": "测试卡能不能加入流量池？能不能过户？到期之后状态怎么变化？",
+"expected_keywords": ["不支持群组", "不支持过户", "到期预销户", "三月后销户"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "restrictions",
+"source_basis": "CMIOT-B65 2.4 测试卡限制"
+},
+{
+"id": "qa_017",
+"name": "测试卡延期与资料修改规则",
+"question": "客户测试卡快到期了想延期，我在哪里操作？可以延长多久？要重新传附件吗？",
+"expected_keywords": ["测试卡资料修改", "1-90 天", "必须上传附件"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "operation_steps",
+"source_basis": "CMIOT-B65 3.3.1 测试卡延期"
+},
+{
+"id": "qa_018",
+"name": "测试卡预销户重开户条件",
+"question": "测试卡进入预销户状态，还能重开户吗？需要满足什么条件？",
+"expected_keywords": ["未超期", "修改使用期限", "再重开户"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "restrictions",
+"source_basis": "CMIOT-B65 2.4.5 重开户规则"
+},
+{
+"id": "qa_019",
+"name": "号卡报废流程与认证要求",
+"question": "客户有一批呆滞卡要报废，我在系统里完整怎么操作？提交需要什么认证？",
+"expected_keywords": ["库存管理", "号卡报废", "上传文件", "金库鉴权", "提交"],
+"optional_keywords": ["查询执行结果"],
+"threshold": 0.67,
+"category": "operation_steps",
+"source_basis": "CMIOT-B66 3 报废流程"
+},
+{
+"id": "qa_020",
+"name": "报废文件格式与失败处理",
+"question": "号卡报废批量文件支持什么格式？报废失败的号码记录在哪里？怎么重提？",
+"expected_keywords": ["TXT", "XLSX", "失败文件", "核对状态重新上传"],
+"optional_keywords": ["1 万行"],
+"threshold": 0.67,
+"category": "batch_operation",
+"source_basis": "CMIOT-B66 3.2 文件与失败处理"
+},
+{
+"id": "qa_021",
+"name": "集团代付办理条件与限制",
+"question": "客户想办集团成员代付，被代付的卡必须满足哪些条件？哪些情况不能办？",
+"expected_keywords": ["待激活 / 已激活", "实名", "单卡个付", "后付费", "非流量池"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "restrictions",
+"source_basis": "CMIOT-B70 4 代付限制"
+},
+{
+"id": "qa_022",
+"name": "代付关系同停同开规则",
+"question": "什么是代付关系的同停同开？代付手机号停机物联卡会怎样？",
+"expected_keywords": ["同步停机", "同步复机", "信控联动"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "other",
+"source_basis": "CMIOT-B70 3 同停同开"
+},
+{
+"id": "qa_023",
+"name": "代付关系添加与变更删除",
+"question": "我要给客户新增代付关系，步骤是什么？生效后可以改什么？怎么删除？",
+"expected_keywords": ["选择集团", "填代付手机号", "选物联卡", "仅改代付号码", "删除解除"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "operation_steps",
+"source_basis": "CMIOT-B70 3 添加 / 变更 / 删除"
+},
+{
+"id": "qa_024",
+"name": "跨地市与跨省代付支持",
+"question": "集团代付支持跨地市办理吗？支持跨省吗？分别有什么限制？",
+"expected_keywords": ["集团账户跨地市支持", "单卡不支持", "不支持跨省"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "restrictions",
+"source_basis": "CMIOT-B70 1/5 跨域规则"
+},
+{
+"id": "qa_025",
+"name": "SCP 白名单批量配置规则",
+"question": "我要给安吉星客户配置 SCP 白名单，从哪里进？批量上传会覆盖原来的吗？上限多少？",
+"expected_keywords": ["集团 360 视图", "群组", "先删除再新增", "1000"],
+"optional_keywords": ["语音群组可见"],
+"threshold": 0.67,
+"category": "operation_steps",
+"source_basis": "CMIOT-B72 整体说明"
+},
+{
+"id": "qa_026",
+"name": "集团注册前置与建档要求",
+"question": "我要给新客户办集团注册，必须先在省 CRM 做什么？同步到哪里才能在 CMIOT 办？",
+"expected_keywords": ["省 CRM 建档", "同步 BBOSS", "再注册"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "required_materials",
+"source_basis": "CMIOT-B79 2.1 集团注册前置"
+},
+{
+"id": "qa_027",
+"name": "集团注册重复与提示信息",
+"question": "客户集团已经注册过了，我再提交注册会提示什么？应该去哪里查客户信息？",
+"expected_keywords": ["已注册", "不可重复", "集团 360 视图"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "error_handling",
+"source_basis": "CMIOT-B79 3.1.1 重复注册"
+},
+{
+"id": "qa_028",
+"name": "政府集团账户缴费周期",
+"question": "政府类客户的集团账户，后付费缴费周期最长可以设多久？普通客户呢？",
+"expected_keywords": ["政府 12 个月", "普通 6 个月"],
+"optional_keywords": [],
+"threshold": 0.75,
+"category": "account_billing",
+"source_basis": "CMIOT-B79 3.1.1 企业类型"
+},
+{
+"id": "qa_029",
+"name": "项目创建与折扣底线要求",
+"question": "我新建项目时商品折扣低于底线，必须补充什么材料？项目名称可以重复吗？",
+"expected_keywords": ["总部批复文号", "同一集团不可重复"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "required_materials",
+"source_basis": "CMIOT-B79 3.1.2 项目规则"
+},
+{
+"id": "qa_030",
+"name": "批量开户前置条件检查",
+"question": "我要给客户做批量开户，办理前必须检查哪些条件才算齐全？",
+"expected_keywords": ["权限", "有效集团", "有效项目", "有效账户", "号卡资源"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "required_materials",
+"source_basis": "CMIOT-B79 2.4 批量开户前置"
+},
+{
+"id": "qa_031",
+"name": "用户类别与号段匹配规则",
+"question": "开户选 4/5G SA 用户和 2/3/4G&5G NSA 用户，号段分别有什么要求？选错会怎样？",
+"expected_keywords": ["SA 用 SA 号段", "NSA 用 NSA 号段", "校验不通过"],
+"optional_keywords": [],
+"threshold": 0.75,
+"category": "restrictions",
+"source_basis": "CMIOT-B79 3.1.4 用户类别"
+},
+{
+"id": "qa_032",
+"name": "无线上网类服务项目要求",
+"question": "开户时无线上网类服务设为是，对项目有强制要求吗？不满足会怎样？",
+"expected_keywords": ["必须有合同编码", "否则无法选择"],
+"optional_keywords": [],
+"threshold": 0.75,
+"category": "restrictions",
+"source_basis": "CMIOT-B79 3.1.4 无线上网服务"
+},
+{
+"id": "qa_033",
+"name": "搭载销售必填场景与状态",
+"question": "什么场景下搭载销售是必填项？选是时卡初始状态必须是什么？",
+"expected_keywords": ["非定向大流量", "语音群组", "可测试", "库存"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "restrictions",
+"source_basis": "CMIOT-B79 3.1.4 搭载销售"
+},
+{
+"id": "qa_034",
+"name": "测试期开通三要素",
+"question": "我想给客户开户带测试期，必须同时满足哪三个条件才能生效？",
+"expected_keywords": ["初始状态可测试", "余量通知", "订购测试期套餐"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "operation_steps",
+"source_basis": "CMIOT-B79 3.1.4 测试期条件"
+},
+{
+"id": "qa_035",
+"name": "DICT 专用账户数量限制",
+"question": "一个集团客户下面最多可以建多少个 DICT 全网项目专用账户？",
+"expected_keywords": ["20 个"],
+"optional_keywords": [],
+"threshold": 1.0,
+"category": "restrictions",
+"source_basis": "CMIOT-B79 3.1.4 DICT 账户数量"
+},
+{
+"id": "qa_036",
+"name": "账户余额提醒阈值适用类型",
+"question": "账户余额提醒阈值功能哪些账户能用？哪些不能用？",
+"expected_keywords": ["预付费统付可用", "测试卡 / BBC / 后付费不可用"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "account_billing",
+"source_basis": "CMIOT-B79 3.1.4 阈值设置"
+},
+{
+"id": "qa_037",
+"name": "批量开户语音商品限制",
+"question": "我在批量开户时能直接订购语音商品吗？语音商品要怎么办理？",
+"expected_keywords": ["批量不可订", "单个开户可订"],
+"optional_keywords": [],
+"threshold": 0.75,
+"category": "restrictions",
+"source_basis": "CMIOT-B79 3.1.4 语音限制"
+},
+{
+"id": "qa_038",
+"name": "批量开户加群数量上限",
+"question": "批量开户同时加入群组，最多支持多少张？不加群组最多多少张？",
+"expected_keywords": ["加群 1 万", "不加群 5 万"],
+"optional_keywords": [],
+"threshold": 0.75,
+"category": "batch_operation",
+"source_basis": "CMIOT-B79 3.1.4 加群上限"
+},
+{
+"id": "qa_039",
+"name": "定向流量技术管控商品",
+"question": "客户开定向流量，必须强制订购哪些技术管控商品？",
+"expected_keywords": ["机卡绑定", "人联网访问禁止", "限额管控", "区域限制"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "package_info",
+"source_basis": "CMIOT-B79 技术管控规则"
+},
+{
+"id": "qa_040",
+"name": "非定向大流量卡物理类型",
+"question": "非定向大流量的卡，物理类型必须是什么？否则会被拦截吗？",
+"expected_keywords": ["贴片卡", "强制拦截"],
+"optional_keywords": [],
+"threshold": 0.75,
+"category": "restrictions",
+"source_basis": "CMIOT-B79 技术管控规则"
+},
+{
+"id": "qa_041",
+"name": "固定位置场景管控要求",
+"question": "客户应用场景是固定位置类，开户必须订购什么管控商品？",
+"expected_keywords": ["区域限制类商品"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "package_info",
+"source_basis": "CMIOT-B79 技术管控规则"
+},
+{
+"id": "qa_042",
+"name": "预受理驳回后重新提交",
+"question": "预受理单被审核驳回，我修改后重新提交，必须携带原来的单号吗？",
+"expected_keywords": ["必须携带原省预受理单号"],
+"optional_keywords": [],
+"threshold": 0.75,
+"category": "operation_steps",
+"source_basis": "CMIOT-B64 3.2.2 驳回重提"
+},
+{
+"id": "qa_043",
+"name": "批开结算页面与模板规则",
+"question": "预受理转正式订单后的结算页面沿用什么格式？支持生成批开模板吗？",
+"expected_keywords": ["现有格式", "不支持生成批开模板"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "operation_steps",
+"source_basis": "CMIOT-B64 3.2.3 结算页面"
+},
+{
+"id": "qa_044",
+"name": "测试卡补换卡属性保持",
+"question": "测试卡办理补卡、换卡之后，还是测试卡吗？继续遵守测试卡规则吗？",
+"expected_keywords": ["仍是测试卡", "遵守原规则"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "operation_steps",
+"source_basis": "CMIOT-B65 2.4.4 补换卡"
+},
+{
+"id": "qa_045",
+"name": "测试卡到期查询时间范围",
+"question": "我要查即将到期的测试卡，查询时间段最长可以选多少天？",
+"expected_keywords": ["90 天"],
+"optional_keywords": [],
+"threshold": 1.0,
+"category": "restrictions",
+"source_basis": "CMIOT-B65 3.3.3 到期查询"
+},
+{
+"id": "qa_046",
+"name": "测试卡信息导出认证要求",
+"question": "我要导出测试卡信息、到期清单、统计数据，需要做什么认证？",
+"expected_keywords": ["金库认证"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "operation_steps",
+"source_basis": "CMIOT-B65 3.3 导出要求"
+},
+{
+"id": "qa_047",
+"name": "号卡报废开关关闭提示",
+"question": "我点号卡报废新增，提示本省未开启，是什么原因？怎么处理？",
+"expected_keywords": ["报废开关关闭", "联系开启"],
+"optional_keywords": [],
+"threshold": 0.75,
+"category": "error_handling",
+"source_basis": "CMIOT-B66 3.2 开关提示"
+},
+{
+"id": "qa_048",
+"name": "代付关系周期设置范围",
+"question": "配置集团代付关系时，代付周期可以设置多长时间？默认是多久？",
+"expected_keywords": ["1-120 个月", "默认无限"],
+"optional_keywords": [],
+"threshold": 0.75,
+"category": "restrictions",
+"source_basis": "CMIOT-B70 5 代付周期"
+},
+{
+"id": "qa_049",
+"name": "红名单账户代付限制",
+"question": "客户账户在红名单里，可以办理集团代付或被代付吗？",
+"expected_keywords": ["红名单不支持被代付", "不可互斥设置"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "restrictions",
+"source_basis": "CMIOT-B70 5 红名单限制"
+},
+{
+"id": "qa_050",
+"name": "SCP 白名单文件格式支持",
+"question": "批量上传企业 / 成员 SCP 白名单，支持什么文件格式？",
+"expected_keywords": ["TXT", "XLSX"],
+"optional_keywords": [],
+"threshold": 0.75,
+"category": "batch_operation",
+"source_basis": "CMIOT-B72 4 文件格式"
+},
+{
+"id": "qa_051",
+"name": "集团证件上传大小格式",
+"question": "集团注册上传集团证件扫描件，支持哪些格式？大小限制多少？",
+"expected_keywords": ["JPEG", "PNG", "PDF", "1024KB"],
+"optional_keywords": [],
+"threshold": 0.75,
+"category": "required_materials",
+"source_basis": "CMIOT-B79 3.1.1 证件要求"
+},
+{
+"id": "qa_052",
+"name": "集团端口号数量限制",
+"question": "一个集团客户最多可以录入多少个企业端口号？",
+"expected_keywords": ["10 个"],
+"optional_keywords": [],
+"threshold": 1.0,
+"category": "restrictions",
+"source_basis": "CMIOT-B79 3.1.1 端口号数量"
+},
+{
+"id": "qa_053",
+"name": "项目开卡最大数量限制",
+"question": "一个项目里面，允许开卡的最大数量是多少？",
+"expected_keywords": ["2 千万"],
+"optional_keywords": [],
+"threshold": 1.0,
+"category": "restrictions",
+"source_basis": "CMIOT-B79 3.1.2 开卡上限"
+},
+{
+"id": "qa_054",
+"name": "项目附件大小与数量",
+"question": "新建项目上传附件，单个大小最多多少？最多传几个？",
+"expected_keywords": ["30M", "10 个"],
+"optional_keywords": [],
+"threshold": 0.75,
+"category": "required_materials",
+"source_basis": "CMIOT-B79 3.1.2 项目附件"
+},
+{
+"id": "qa_055",
+"name": "群组名称重复限制",
+"question": "同一个集团客户下面，群组用户名称可以重复吗？重复会怎样？",
+"expected_keywords": ["不允许重复", "校验不通过"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "restrictions",
+"source_basis": "CMIOT-B79 3.1.3 群组名称"
+},
+{
+"id": "qa_056",
+"name": "TOP 群组开通权限限制",
+"question": "我想给客户开 TOP 群组，什么条件下才允许开通？",
+"expected_keywords": ["必须是 TOP 客户", "否则不允许"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "restrictions",
+"source_basis": "CMIOT-B79 3.1.3 TOP 群组"
+},
+{
+"id": "qa_057",
+"name": "批开模板数量与不支持场景",
+"question": "一个集团最多存多少个批量开户模板？哪些场景不支持生成模板？",
+"expected_keywords": ["10 个", "国际出口 / APP 预受理 / 新建统付账户不支持"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "batch_operation",
+"source_basis": "CMIOT-B79 3.1.4 批开模板"
+},
+{
+"id": "qa_058",
+"name": "项目撤销权限归属",
+"question": "项目在审批过程中，谁可以撤销申请？审批人可以撤销吗？",
+"expected_keywords": ["仅创建人可撤销", "审批人不可撤销"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "restrictions",
+"source_basis": "CMIOT-B79 3.2.1 撤销规则"
+},
+{
+"id": "qa_059",
+"name": "无需地市 / 省级审批项目",
+"question": "哪些项目不需要地市复核？哪些不需要省级审批？",
+"expected_keywords": ["省公司发起 / 非审批无需地市", "折扣达标 / 非审批无需省级"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "restrictions",
+"source_basis": "CMIOT-B79 3.2.1 审批豁免"
+},
+{
+"id": "qa_060",
+"name": "车联网卡最小管控要求",
+"question": "车联网卡开户，最小必须订购哪些技术管控商品？",
+"expected_keywords": ["机卡绑定", "卡片限定", "人联网访问控制"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "package_info",
+"source_basis": "CMIOT-B79 开卡场景 8"
+},
+{
+"id": "qa_061",
+"name": "实名验证方式名称变更",
+"question": "现在 CMIOT 里实名认证方式改成什么名称了？分别对应原来的什么？",
+"expected_keywords": ["掌厅认证", "上门认证", "辅助认证"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "other",
+"source_basis": "CMIOT-B79 实名认证改造"
+},
+{
+"id": "qa_062",
+"name": "预受理权限配置角色",
+"question": "省预受理订单管理权限可以配给哪些一线角色？",
+"expected_keywords": ["省级客户经理", "地市客户经理", "省级营业员", "地市营业员"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "other",
+"source_basis": "CMIOT-B64 2 权限配置"
+},
+{
+"id": "qa_063",
+"name": "责任人经办人信息脱敏",
+"question": "预受理详情页面里，责任人、经办人信息会明文展示吗？",
+"expected_keywords": ["脱敏展示", "不明文"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "other",
+"source_basis": "CMIOT-B64 3.2.1 脱敏规则"
+},
+{
+"id": "qa_064",
+"name": "审批页面展示内容范围",
+"question": "我在审核预受理单时，页面会展示全量信息吗？主要展示哪几块？",
+"expected_keywords": ["不展示全量", "基本信息", "主商品", "场景", "附件"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "operation_steps",
+"source_basis": "CMIOT-B64 3.2.2 审批页面"
+},
+{
+"id": "qa_065",
+"name": "批开页面车企名录库录入",
+"question": "转单批开时车企名录库信息怎么来？可以手工补充吗？",
+"expected_keywords": ["预受理带出", "可手工补充"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "operation_steps",
+"source_basis": "CMIOT-B64 3.2.3 车企信息"
+},
+{
+"id": "qa_066",
+"name": "批开号卡信息上传要求",
+"question": "预受理转批开时，号卡文件我要怎么上传？依据什么数量上传？",
+"expected_keywords": ["按预受理开卡数量", "上传号码列表"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "operation_steps",
+"source_basis": "CMIOT-B64 3.2.3 号卡信息"
+},
+{
+"id": "qa_067",
+"name": "省公司实名认证按钮作用",
+"question": "批开页面里 “省公司实名认证” 按钮是做什么用的？",
+"expected_keywords": ["读取省侧实名信息", "写入批开订单"],
+"optional_keywords": ["责任人 / 经办人"],
+"threshold": 0.67,
+"category": "operation_steps",
+"source_basis": "CMIOT-B64 3.2.3 实名按钮"
+},
+{
+"id": "qa_068",
+"name": "批开提交报错处理方式",
+"question": "预受理转单提交时报错，我应该怎么处理？",
+"expected_keywords": ["按报错修改", "补充信息", "重新提交"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "error_handling",
+"source_basis": "CMIOT-B64 3.2.3 报错处理"
+},
+{
+"id": "qa_069",
+"name": "无线上网场景签约校验",
+"question": "创建无线上网场景预受理单，必须先做什么签约？否则能创建吗？",
+"expected_keywords": ["应用场景签约", "不满足不允许创建"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "restrictions",
+"source_basis": "CMIOT-B64 4 签约校验"
+},
+{
+"id": "qa_070",
+"name": "技术管控商品修改限制",
+"question": "开卡一致性开启后，技术管控商品可以修改删除吗？其他商品呢？",
+"expected_keywords": ["管控商品不可改", "其他增值商品可改"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "restrictions",
+"source_basis": "CMIOT-B64 4 管控商品修改"
+},
+{
+"id": "qa_071",
+"name": "测试卡用途范围说明",
+"question": "测试卡可以给客户正常商用吗？一般允许用在哪些场景？",
+"expected_keywords": ["不可商用", "工程测试", "网络测试", "计费测试", "体验"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "restrictions",
+"source_basis": "CMIOT-B65 2.1 测试卡用途"
+},
+{
+"id": "qa_072",
+"name": "测试卡账户默认付费类型",
+"question": "测试卡自动创建的账户，默认是预付费还是后付费？",
+"expected_keywords": ["预付费", "后付费额度 0"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "account_billing",
+"source_basis": "CMIOT-B65 2.4.1 账户类型"
+},
+{
+"id": "qa_073",
+"name": "测试卡账户名称生成规则",
+"question": "测试卡账户名称是我手工填的吗？系统按什么规则生成？",
+"expected_keywords": ["后台自动", "用户号码"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "account_billing",
+"source_basis": "CMIOT-B65 2.4.1 账户名称"
+},
+{
+"id": "qa_074",
+"name": "测试卡信用不足提示内容",
+"question": "测试卡订购套餐超信用度，系统会提示什么内容？",
+"expected_keywords": ["信用不足", "限制办理"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "error_handling",
+"source_basis": "CMIOT-B65 2.4.1 信用不足提示"
+},
+{
+"id": "qa_075",
+"name": "测试卡开户提交前提示",
+"question": "测试卡提交订单前，系统会弹出什么提示让我确认？",
+"expected_keywords": ["确认套餐", "超额度停机"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "operation_steps",
+"source_basis": "CMIOT-B65 2.4.1 提交提示"
+},
+{
+"id": "qa_076",
+"name": "测试卡开户附件必填",
+"question": "测试卡开户时，业务资料附件是选填还是必填？",
+"expected_keywords": ["必填"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "required_materials",
+"source_basis": "CMIOT-B65 2.4.1 附件要求"
+},
+{
+"id": "qa_077",
+"name": "测试卡销户号码回收规则",
+"question": "测试卡正式销户后，号码和卡怎么处理？",
+"expected_keywords": ["号码回收", "卡片废弃"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "other",
+"source_basis": "CMIOT-B65 2.4.5 销户规则"
+},
+{
+"id": "qa_078",
+"name": "测试卡可修改状态范围",
+"question": "测试卡在哪些状态下我可以修改资料？已销户还能改吗？",
+"expected_keywords": ["测试 / 库存 / 待激活 / 激活 / 停机 / 预销户可改", "已销户不可改"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "restrictions",
+"source_basis": "CMIOT-B65 3.3.1 修改状态"
+},
+{
+"id": "qa_079",
+"name": "测试卡统计查询月份范围",
+"question": "测试卡信息统计最多可以查询最近多少个月的数据？",
+"expected_keywords": ["12 个月"],
+"optional_keywords": [],
+"threshold": 1.0,
+"category": "restrictions",
+"source_basis": "CMIOT-B65 3.3.4 统计范围"
+},
+{
+"id": "qa_080",
+"name": "号卡报废权限授予角色",
+"question": "号卡报废菜单权限一般配给哪些角色？",
+"expected_keywords": ["省级资源管理员", "地市级资源管理员", "系统管理员"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "other",
+"source_basis": "CMIOT-B66 2 权限角色"
+},
+{
+"id": "qa_081",
+"name": "报废类型切换清空附件",
+"question": "我在报废页面切换号码 / ICCID 类型，已上传的文件会清空吗？",
+"expected_keywords": ["自动清空"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "operation_steps",
+"source_basis": "CMIOT-B66 3.2 类型切换"
+},
+{
+"id": "qa_082",
+"name": "代付查询条件组合",
+"question": "我要查客户的代付关系，可以用哪些条件组合查询？",
+"expected_keywords": ["集团", "代付号码", "被代付号码", "方式", "状态", "时间"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "operation_steps",
+"source_basis": "CMIOT-B70 3.2 查询条件"
+},
+{
+"id": "qa_083",
+"name": "代付关系删除提示内容",
+"question": "我删除生效的代付关系时，系统会提示什么内容？",
+"expected_keywords": ["解除代付", "费用自付", "立即生效"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "operation_steps",
+"source_basis": "CMIOT-B70 3.5 删除提示"
+},
+{
+"id": "qa_084",
+"name": "SCP 白名单适用群组类型",
+"question": "我在群组里看不到 SCP 白名单菜单，是什么原因？",
+"expected_keywords": ["仅语音群组显示", "流量群组不显示"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "restrictions",
+"source_basis": "CMIOT-B72 4 群组类型"
+},
+{
+"id": "qa_085",
+"name": "集团主联系人必填要求",
+"question": "集团注册时，联系人信息里至少必须填哪一种？",
+"expected_keywords": ["集团主联系人"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "required_materials",
+"source_basis": "CMIOT-B79 3.1.1 联系人必填"
+},
+{
+"id": "qa_086",
+"name": "账户名称最大长度",
+"question": "新建集团账户、单卡账户时，账户名称最多支持多少字符？",
+"expected_keywords": ["256 位"],
+"optional_keywords": [],
+"threshold": 1.0,
+"category": "restrictions",
+"source_basis": "CMIOT-B79 3.1.4 账户名称长度"
+},
+{
+"id": "qa_087",
+"name": "销户号码重新制卡属性",
+"question": "销户回收的号码重新制卡，SIM 卡费属性我应该选什么？",
+"expected_keywords": ["是"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "operation_steps",
+"source_basis": "CMIOT-B79 3.1.4 重新制卡属性"
+},
+{
+"id": "qa_088",
+"name": "项目变更不触发集团审批",
+"question": "我改项目哪些内容不会触发集团审批？",
+"expected_keywords": ["提前失效", "减开卡量", "取消 2G", "同档位改套餐"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "restrictions",
+"source_basis": "CMIOT-B79 3.2.1 审批豁免"
+},
+{
+"id": "qa_089",
+"name": "实名验证开关作用",
+"question": "实名查验和人证比对开关关闭，还会做校验吗？打开才校验吗？",
+"expected_keywords": ["关闭不校验", "打开才校验"],
+"optional_keywords": [],
+"threshold": 0.75,
+"category": "restrictions",
+"source_basis": "CMIOT-B64 3.2.3 开关控制"
+},
+{
+"id": "qa_090",
+"name": "预受理转单仅一次限制",
+"question": "一张预受理单可以多次转正式订单吗？最多可以转几次？",
+"expected_keywords": ["仅一次", "不可多次"],
+"optional_keywords": [],
+"threshold": 0.75,
+"category": "restrictions",
+"source_basis": "CMIOT-B64 3.2.3 转单次数"
+},
+{
+"id": "qa_091",
+"name": "预受理查询条件新增业务类型",
+"question": "我查预受理单时，查询条件里多了一个业务类型，支持哪两个选项？",
+"expected_keywords": ["批量开户", "群组开户"],
+"optional_keywords": [],
+"threshold": 0.75,
+"category": "operation_steps",
+"source_basis": "CMIOT-B64 3.2.1 查询条件"
+},
+{
+"id": "qa_092",
+"name": "测试卡批量修改最大数量",
+"question": "我用批量修改测试卡资料，一次最多支持多少张？",
+"expected_keywords": ["1 万"],
+"optional_keywords": [],
+"threshold": 1.0,
+"category": "batch_operation",
+"source_basis": "CMIOT-B65 3.3.1 批量修改上限"
+},
+{
+"id": "qa_093",
+"name": "代付号码本省限制",
+"question": "用来代付物联卡的手机号，必须是哪个省的？可以跨省代付吗？",
+"expected_keywords": ["本省移动号码", "不支持跨省"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "restrictions",
+"source_basis": "CMIOT-B70 3.3 代付号码限制"
+},
+{
+"id": "qa_094",
+"name": "单笔代付单一号码限制",
+"question": "我办一笔代付业务，可以用多个手机号一起代付吗？",
+"expected_keywords": ["仅支持一个手机号"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "restrictions",
+"source_basis": "CMIOT-B70 4 单笔代付限制"
+},
+{
+"id": "qa_095",
+"name": "被代付号码唯一代付限制",
+"question": "一张物联卡可以同时被多个手机号代付吗？",
+"expected_keywords": ["仅一条生效代付", "不可多个"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "restrictions",
+"source_basis": "CMIOT-B70 4 唯一代付限制"
+},
+{
+"id": "qa_096",
+"name": "欠费状态代付限制",
+"question": "物联卡有已出账欠费，我可以直接办代付吗？",
+"expected_keywords": ["需先缴清欠费", "再办理"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "restrictions",
+"source_basis": "CMIOT-B70 4 欠费限制"
+},
+{
+"id": "qa_097",
+"name": "省预受理第一批试点省份",
+"question": "省预受理第一批上线试点有哪些省份？",
+"expected_keywords": ["浙江", "北京", "江苏", "内蒙古", "陕西", "云南", "黑龙江", "山西", "贵州", "河南"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "restrictions",
+"source_basis": "CMIOT-B64 2 试点省份"
+},
+{
+"id": "qa_098",
+"name": "号卡报废可用状态要求",
+"question": "我要报废的号码 / ICCID，必须是什么状态才可以报废？",
+"expected_keywords": ["可用状态", "系统存在"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "restrictions",
+"source_basis": "CMIOT-B66 3.2 报废状态"
+},
+{
+"id": "qa_099",
+"name": "预受理资料附件归类名称",
+"question": "省公司上传的预受理附件，在资料稽核里归类叫什么？",
+"expected_keywords": ["11 省公司上传"],
+"optional_keywords": [],
+"threshold": 1.0,
+"category": "other",
+"source_basis": "CMIOT-B64 3.2.3 附件归类"
+},
+{
+"id": "qa_100",
+"name": "批开页面禁用 APP 预受理",
+"question": "预受理转批量开户时，APP 预受理订单菜单可以用吗？",
+"expected_keywords": ["置灰", "不可用"],
+"optional_keywords": [],
+"threshold": 0.75,
+"category": "restrictions",
+"source_basis": "CMIOT-B64 3.2.3 APP 预受理禁用"
+}
+]

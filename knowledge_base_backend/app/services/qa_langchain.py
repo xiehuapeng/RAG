@@ -11,6 +11,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableSerializable
 
 from app.config import QA_HISTORY_LIMIT, QA_MAX_CONTEXT_CHARS
+from app.qa_logging import emit_qa_log
 from app.services.langchain_runtime import get_chat_llm
 
 
@@ -20,6 +21,26 @@ logger.setLevel(logging.INFO)
 
 def _to_json(data: object) -> str:
     return json.dumps(data, ensure_ascii=False, default=str)
+
+
+def _build_evidence_log_summary(evidence: list[dict[str, Any]]) -> dict[str, object]:
+    documents: list[str] = []
+    for item in evidence:
+        document = str(item.get("document_title") or "").strip()
+        if document and document not in documents:
+            documents.append(document)
+    return {
+        "chunk_count": len(evidence),
+        "documents": documents,
+    }
+
+
+def _log_evidence_selection(evidence: list[dict[str, Any]]) -> None:
+    summary = _build_evidence_log_summary(evidence)
+    emit_qa_log(
+        "分片过滤",
+        f"过滤后分片数={summary['chunk_count']} | 过滤后文档={_to_json(summary['documents'])}",
+    )
 
 
 @dataclass(slots=True)
@@ -148,13 +169,6 @@ def build_evidence_context(
     2. 控制上下文长度预算。
     3. 产出可以直接返给前端的结构化引用数据。
     """
-    logger.info(
-        "[qa.build_evidence_context.request] max_chars=%s retrieved_count=%s retrieval_results=%s",
-        max_chars,
-        len(retrieval_results),
-        _to_json(retrieval_results),
-    )
-
     blocks: list[str] = []
     evidence: list[dict[str, Any]] = []
     total = 0
@@ -186,20 +200,10 @@ def build_evidence_context(
         total = next_total
 
     if not blocks:
-        logger.info(
-            "[qa.build_evidence_context.response] context_chars=0 evidence_count=0 evidence_context=%s evidence_items=%s",
-            "",
-            "[]",
-        )
+        _log_evidence_selection([])
         return "", []
     evidence_context = "\n\n".join(blocks)
-    logger.info(
-        "[qa.build_evidence_context.response] context_chars=%s evidence_count=%s evidence_context=%s evidence_items=%s",
-        len(evidence_context),
-        len(evidence),
-        evidence_context,
-        _to_json(evidence),
-    )
+    _log_evidence_selection(evidence)
     return evidence_context, evidence
 
 
@@ -226,14 +230,18 @@ def _build_answer_prompt() -> ChatPromptTemplate:
         [
             "你是企业知识库问答助手。",
             "只能依据提供的证据和会话上下文回答。",
+            "严格紧扣问题的提问范围作答：只回答用户明确问到的内容。",
+            "不要主动补充问题未涉及的场景例外、特殊情形或替代方案；即使证据中包含这些信息也不要写入答案。",
             "如果证据不足，请明确说明证据不足，不要编造。",
             "如果多个证据冲突，请指出冲突，并优先采用更完整或更新的版本。",
+            "回答总字数控制在 400 字以内：结论优先，只保留与问题直接相关的关键信息，省略背景铺垫和无关展开。",
             "请使用 Markdown 输出。",
             "优先采用以下结构：",
             "### 结论",
             "### 依据",
             "### 注意事项",
             "### 后续问题",
+            "每个小节只保留最关键的条目；若某小节无内容可写，直接省略该小节。",
             "段落尽量简短，多点信息请使用项目符号。",
         ]
     )
@@ -311,6 +319,10 @@ def _render_prompt_messages(prompt: ChatPromptTemplate, inputs: dict[str, str]) 
     ]
 
 
+def _render_prompt_text(prompt_messages: list[dict[str, str]]) -> str:
+    return "\n\n".join(f"[{item['role']}]\n{item['content']}" for item in prompt_messages)
+
+
 def invoke_answer_chain(
     *,
     question: str,
@@ -328,15 +340,10 @@ def invoke_answer_chain(
     )
     prompt = _build_answer_prompt()
     prompt_messages = _render_prompt_messages(prompt, inputs)
-    logger.info(
-        "[qa.llm.request] mode=invoke chain_inputs=%s prompt_messages=%s",
-        _to_json(inputs),
-        _to_json(prompt_messages),
-    )
+    emit_qa_log("整理答案", _render_prompt_text(prompt_messages))
 
     chain = prompt | get_chat_llm() | StrOutputParser()
     output = chain.invoke(inputs)
-    logger.info("[qa.llm.response] mode=invoke output=%s", output)
     return output
 
 
@@ -359,11 +366,7 @@ def stream_answer_chain(
     )
     prompt = _build_answer_prompt()
     prompt_messages = _render_prompt_messages(prompt, inputs)
-    logger.info(
-        "[qa.llm.request] mode=stream chain_inputs=%s prompt_messages=%s",
-        _to_json(inputs),
-        _to_json(prompt_messages),
-    )
+    emit_qa_log("整理答案", _render_prompt_text(prompt_messages))
 
     chain = prompt | get_chat_llm() | StrOutputParser()
     chunks: list[str] = []
@@ -379,12 +382,6 @@ def stream_answer_chain(
             "".join(chunks),
         )
         raise
-
-    logger.info(
-        "[qa.llm.response] mode=stream status=ok chunk_count=%s output=%s",
-        len(chunks),
-        "".join(chunks),
-    )
 
 
 _SUMMARY_RE = re.compile(r"(?ms)^###\s*(?:摘要|补充说明|注意事项|Notes)\s*$\n(.*?)(?=^###\s|\Z)")

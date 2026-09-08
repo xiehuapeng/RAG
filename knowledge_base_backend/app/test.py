@@ -1,8 +1,8 @@
 from openai import OpenAI
-from app.config import MINIMAX_MODEL_NAME, OPENAI_API_KEY, OPENAI_BASE_URL
+from app.config import LLM_MODEL_NAME, OPENAI_API_KEY, OPENAI_BASE_URL
 
 
-class MinimaxConfigError(RuntimeError):
+class LLMConfigError(RuntimeError):
     pass
 
 client = OpenAI(api_key=OPENAI_API_KEY, base_url=OPENAI_BASE_URL)
@@ -13,7 +13,7 @@ print("Thinking Process:")
 print("=" * 60)
 
 stream = client.chat.completions.create(
-    model="MiniMax-M2.5",
+    model=LLM_MODEL_NAME,
     messages=[
         {"role": "system", "content": "You are a helpful assistant."},
         {"role": "user", "content": "介绍下python"},

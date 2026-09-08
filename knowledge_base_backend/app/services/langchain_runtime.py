@@ -8,13 +8,14 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+import httpx
 from langchain_chroma import Chroma
 from langchain_community.document_loaders.base import BaseLoader
 from langchain_core.documents import Document as LCDocument
 from langchain_core.embeddings import Embeddings
 from langchain_openai import ChatOpenAI
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from sentence_transformers import SentenceTransformer
+from sentence_transformers import CrossEncoder, SentenceTransformer
 
 from app.config import (
     CHROMA_COLLECTION_NAME,
@@ -22,14 +23,17 @@ from app.config import (
     CHUNK_OVERLAP,
     CHUNK_SIZE,
     EMBEDDING_MODEL_NAME,
-    MINIMAX_MAX_OUTPUT_TOKENS,
-    MINIMAX_MODEL_NAME,
-    MINIMAX_REASONING_SPLIT,
-    MINIMAX_TEMPERATURE,
+    LLM_MAX_OUTPUT_TOKENS,
+    LLM_MODEL_NAME,
+    LLM_NO_THINK,
+    LLM_REASONING_SPLIT,
+    LLM_TEMPERATURE,
+    LLM_THINKING_BUDGET,
     OPENAI_API_KEY,
     OPENAI_BASE_URL,
+    RERANKER_MODEL_NAME,
 )
-from app.services.minimax import MinimaxConfigError
+from app.services.llm_client import LLMConfigError, _strip_proxy_env
 from app.services.parsers import ParsedSection, parse_document_structure
 
 
@@ -116,31 +120,26 @@ class StructuredDocumentLoader(BaseLoader):
     ) -> Iterator[LCDocument]:
         """把章节树转换成 LangChain Document 流。
 
-        这里故意按“章节节点”输出，而不是一开始就切到固定字数。
-        原因是 LangChain 里“加载”和“切分”通常是两个阶段：
-        先保留尽量完整的业务语义边界，再交给 TextSplitter 做统一切片。
+        分片策略：
+        1. 若整个章节（含所有子章节）的正文不超过 CHUNK_SIZE，则合并为一个 chunk，
+           避免“前置条件/操作步骤”这类多小条的章节被切得太碎、检索时召回不全。
+        2. 若超过 CHUNK_SIZE，则把相邻的短子章节按累计长度合并成接近 CHUNK_SIZE 的块，
+           而不是每个子章节独立成一个 chunk。
         """
 
         path_titles = ancestors + ([section.title] if section.title else [])
-        body_text = self._collect_section_body(section)
-        if body_text:
-            composed_content = self._compose_chunk_content(path_titles, body_text)
-            yield LCDocument(
-                page_content=composed_content,
-                metadata={
-                    "section_id": section.id,
-                    "section_title": section.title or "正文",
-                    "chapter_path": " / ".join(path_titles) or "正文",
-                    "section_level": section.level,
-                    "section_order": section.order_index,
-                    "path_depth": len(path_titles) or 1,
-                    "source": str(self.file_path),
-                    "loader_type": "structured_document_loader",
-                },
-            )
+        full_body = self._collect_section_body(section)
 
-        for child in section.children:
-            yield from self._yield_section_documents(child, path_titles)
+        if not full_body:
+            for child in section.children:
+                yield from self._yield_section_documents(child, path_titles)
+            return
+
+        if len(full_body) <= CHUNK_SIZE:
+            yield self._make_document(path_titles, section, full_body)
+            return
+
+        yield from self._yield_merged_children(section, path_titles)
 
     @staticmethod
     def _compose_chunk_content(path_titles: list[str], body_text: str) -> str:
@@ -160,10 +159,86 @@ class StructuredDocumentLoader(BaseLoader):
                 continue
             if block["type"] == "section":
                 child = block["node"]
+                child_title = str(child.title or "").strip()
                 child_text = StructuredDocumentLoader._collect_section_body(child)
+                parts: list[str] = []
+                if child_title:
+                    parts.append(child_title)
                 if child_text:
-                    texts.append(child_text)
+                    parts.append(child_text)
+                if parts:
+                    texts.append("\n".join(parts))
         return "\n".join(texts).strip()
+
+    @staticmethod
+    def _collect_direct_body(section: ParsedSection) -> str:
+        # 只收集 section 自身的段落正文，不递归子章节。
+        texts: list[str] = []
+        for block in section.blocks:
+            if block["type"] == "paragraph":
+                text = str(block.get("text", "")).strip()
+                if text:
+                    texts.append(text)
+        return "\n".join(texts).strip()
+
+    def _make_document(self, path_titles: list[str], section: ParsedSection, body_text: str) -> LCDocument:
+        return LCDocument(
+            page_content=self._compose_chunk_content(path_titles, body_text),
+            metadata={
+                "section_id": section.id,
+                "section_title": section.title or "正文",
+                "chapter_path": " / ".join(path_titles) or "正文",
+                "section_level": section.level,
+                "section_order": section.order_index,
+                "path_depth": len(path_titles) or 1,
+                "source": str(self.file_path),
+                "loader_type": "structured_document_loader",
+            },
+        )
+
+    def _make_merged_document(self, path_titles: list[str], section: ParsedSection, body_parts: list[str]) -> LCDocument:
+        return self._make_document(path_titles, section, "\n\n".join(body_parts))
+
+    def _yield_merged_children(self, section: ParsedSection, path_titles: list[str]) -> Iterator[LCDocument]:
+        # 父章节自身的直接正文单独成 chunk（不含子章节）。
+        direct_body = self._collect_direct_body(section)
+        if direct_body:
+            yield self._make_document(path_titles, section, direct_body)
+
+        # 相邻短子章节按累计长度合并，逼近 CHUNK_SIZE 时断开。
+        buffer_parts: list[str] = []
+        buffer_len = 0
+        for child in section.children:
+            child_title = str(child.title or "").strip()
+            child_body = self._collect_section_body(child)
+            # 纯标题小节（无正文，例如"3.3 集团基本信息展示"）也要保留，
+            # 否则检索时会把这类步骤/前置条件整条漏掉。
+            if not child_body and not child_title:
+                continue
+
+            if len(child_body) > CHUNK_SIZE:
+                if buffer_parts:
+                    yield self._make_merged_document(path_titles, section, buffer_parts)
+                    buffer_parts = []
+                    buffer_len = 0
+                yield from self._yield_section_documents(child, path_titles)
+                continue
+
+            if child_title and child_body:
+                piece = f"{child_title}\n{child_body}"
+            elif child_title:
+                piece = child_title
+            else:
+                piece = child_body
+            buffer_parts.append(piece)
+            buffer_len += len(piece)
+            if buffer_len >= CHUNK_SIZE:
+                yield self._make_merged_document(path_titles, section, buffer_parts)
+                buffer_parts = []
+                buffer_len = 0
+
+        if buffer_parts:
+            yield self._make_merged_document(path_titles, section, buffer_parts)
 
 
 def resolve_sentence_transformer_path(model_name: str) -> str:
@@ -227,6 +302,28 @@ def get_text_splitter() -> RecursiveCharacterTextSplitter:
 @lru_cache(maxsize=1)
 def get_embeddings() -> SentenceTransformerEmbeddings:
     return SentenceTransformerEmbeddings(EMBEDDING_MODEL_NAME)
+
+
+@lru_cache(maxsize=1)
+def get_reranker() -> CrossEncoder:
+    """返回交叉编码器重排模型（进程级单例）。
+
+    与 Bi-Encoder（embedding）各自独立编码不同，Cross-Encoder 把
+    (query, chunk) 拼接后联合输入 Transformer，能捕捉两者的细粒度交互特征，
+    适合对召回候选做精排，弥补“问句措辞 vs 章节标题”的语义鸿沟。
+    这里同样优先解析本地缓存快照并强制 `local_files_only=True`，
+    避免运行期访问 HuggingFace Hub 元数据检查导致检索请求被阻塞。
+    """
+
+    resolved_model = resolve_sentence_transformer_path(RERANKER_MODEL_NAME)
+    # max_length=512 覆盖 bge-reranker-base 的训练长度；
+    # num_labels=1 时默认激活函数为 Sigmoid，predict 输出即 [0,1] 相关性概率。
+    return CrossEncoder(
+        resolved_model,
+        max_length=512,
+        device="cpu",
+        local_files_only=True,
+    )
 
 
 @lru_cache(maxsize=1)
@@ -342,27 +439,46 @@ def get_chat_llm(
 ) -> ChatOpenAI:
     """返回 LangChain 的 ChatOpenAI 实例。
 
-    MiniMax 当前走 OpenAI 兼容协议，因此直接使用 `ChatOpenAI` 即可。
+    LLM 当前走 OpenAI 兼容协议，因此直接使用 `ChatOpenAI` 即可。
     这样 Prompt、Runnable、流式输出都能走 LangChain 标准能力。
     """
 
     if not OPENAI_API_KEY:
-        raise MinimaxConfigError(
-            "Missing OPENAI_API_KEY or MINIMAX_API_KEY. Set it before starting the service."
+        raise LLMConfigError(
+            "Missing OPENAI_API_KEY or LLM_API_KEY. Set it before starting the service."
         )
 
     model_kwargs: dict[str, Any] = {}
-    if MINIMAX_REASONING_SPLIT:
-        model_kwargs["extra_body"] = {"reasoning_split": True}
+    extra_body: dict[str, Any] = {}
+    if LLM_REASONING_SPLIT:
+        extra_body["reasoning_split"] = True
+    if LLM_NO_THINK:
+        # DeepSeek 网关不支持 enable_thinking；用 thinking.type=disabled 关闭思考链，
+        # 可让首字延迟从分钟级降到秒级。
+        extra_body["thinking"] = {"type": "disabled"}
+    elif LLM_THINKING_BUDGET > 0:
+        extra_body["thinking"] = {"type": "enabled", "budget_tokens": LLM_THINKING_BUDGET}
+    if extra_body:
+        model_kwargs["extra_body"] = extra_body
+
+    # 清除进程内代理环境变量，并构造一个显式禁用代理的 httpx 客户端，
+    # 避免系统级 HTTP_PROXY（Clash Verge 7897 端口）关闭后连接被拒绝。
+    _strip_proxy_env()
+    http_client = httpx.Client(
+        timeout=httpx.Timeout(60.0, connect=10.0),
+        proxy=None,
+        transport=httpx.HTTPTransport(retries=2),
+    )
 
     return ChatOpenAI(
-        model=MINIMAX_MODEL_NAME,
+        model=LLM_MODEL_NAME,
         api_key=OPENAI_API_KEY,
         base_url=OPENAI_BASE_URL,
-        temperature=MINIMAX_TEMPERATURE if temperature is None else temperature,
-        max_tokens=MINIMAX_MAX_OUTPUT_TOKENS if max_output_tokens is None else max_output_tokens,
+        temperature=LLM_TEMPERATURE if temperature is None else temperature,
+        max_tokens=LLM_MAX_OUTPUT_TOKENS if max_output_tokens is None else max_output_tokens,
         model_kwargs=model_kwargs,
         streaming=True,
+        http_client=http_client,
     )
 
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath, PureWindowsPath
@@ -13,7 +14,11 @@ from app.config import MAX_UPLOAD_FILE_COUNT, MAX_UPLOAD_SIZE, SUPPORTED_EXTENSI
 from app.models import Chunk, Document
 from app.services.langchain_runtime import annotate_split_documents, build_langchain_documents
 from app.services.parsers import ParseError, ParsedSection, parse_document, parse_document_structure
+from app.services.retrieval_langchain import invalidate_keyword_cache
 from app.services.vector_store import delete_chunks, upsert_chunks
+
+
+logger = logging.getLogger(__name__)
 
 
 # 文档服务主流程集中在这个文件：
@@ -237,6 +242,8 @@ def _replace_document_chunks(db: Session, document: Document, chunk_specs: list[
     db.add(document)
     db.flush()
     _sync_chunk_metadata_and_vectors(db, document)
+    # chunk 全量替换后，关键词召回的分词缓存必须失效。
+    invalidate_keyword_cache()
 
 
 def _section_to_outline(section: ParsedSection, ancestors: list[str] | None = None) -> dict[str, Any]:
@@ -314,6 +321,65 @@ def ingest_document(db: Session, document: Document) -> Document:
         raise HTTPException(status_code=500, detail={"code": 3003, "message": "document parse failed"}) from exc
 
 
+def _ingest_replacement(db: Session, document: Document, existing: Document) -> Document:
+    """Stage a replacement, then switch SQL ownership before cleaning old assets."""
+    target = Path(document.storage_path)
+    old_path = existing.storage_path
+    old_ids = [chunk.chroma_id for chunk in existing.chunks if chunk.chroma_id]
+    staged_ids: list[str] = []
+    try:
+        try:
+            old_path = str(resolve_document_storage_path(existing))
+        except HTTPException as exc:
+            if exc.status_code != 404:
+                raise
+            # A missing old source must not prevent recovery by uploading a replacement.
+        structure = parse_document_structure(target)
+        specs = _build_chunk_specs(target, structure.full_text)
+        if not specs:
+            raise ParseError("replacement document contains no indexable content")
+        db.add(document)
+        db.flush()
+        for index, spec in enumerate(specs):
+            chroma_id = f"doc-{document.id}-chunk-{index}-{uuid.uuid4().hex}"
+            staged_ids.append(chroma_id)
+            document.chunks.append(Chunk(
+                chunk_index=index,
+                chroma_id=chroma_id,
+                content=spec.content,
+                metadata_json=json.dumps(spec.metadata, ensure_ascii=False),
+            ))
+        db.flush()
+        _sync_chunk_metadata_and_vectors(db, document)
+        document.chunk_count = len(specs)
+        document.status = "ready"
+        db.delete(existing)
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        # Upsert may have written part of the batch; compensate every attempted ID.
+        if staged_ids:
+            try:
+                delete_chunks(staged_ids)
+            except Exception:
+                logger.exception("Replacement vector cleanup failed; orphan vectors may remain")
+        _delete_stored_file(str(target))
+        status_code = 400 if isinstance(exc, ParseError) else 500
+        message = str(exc) if isinstance(exc, ParseError) else "document replacement failed"
+        raise HTTPException(status_code=status_code, detail={"code": 3003, "message": message}) from exc
+
+    # Cleanup failure must not undo an already committed replacement.
+    invalidate_keyword_cache()
+    if old_ids:
+        try:
+            delete_chunks(old_ids)
+        except Exception:
+            logger.exception("Old replacement vectors could not be removed; cleanup required")
+    _delete_stored_file(old_path)
+    db.refresh(document)
+    return document
+
+
 def save_upload(
     db: Session,
     title: str,
@@ -329,8 +395,6 @@ def save_upload(
     existing = check_existing_file(db, file.filename or "")
     if existing and not overwrite:
         raise HTTPException(status_code=409, detail={"code": 3005, "message": "file already exists"})
-    if existing and overwrite:
-        delete_document_with_vectors(db, existing)
 
     suffix = Path(file.filename or "").suffix.lower()
     stored_name = f"{uuid.uuid4().hex}{suffix}"
@@ -346,6 +410,8 @@ def save_upload(
         status="pending",
         created_by=created_by,
     )
+    if existing and overwrite:
+        return _ingest_replacement(db, document, existing)
     db.add(document)
     db.commit()
     db.refresh(document)
@@ -430,6 +496,8 @@ def update_chunk_content_and_metadata(
     db.commit()
     db.refresh(chunk)
     upsert_chunks([chunk.chroma_id], [chunk.content], [merged_metadata])
+    # chunk 内容被人工编辑后，关键词召回的分词缓存必须失效。
+    invalidate_keyword_cache()
     return chunk
 
 
@@ -450,6 +518,7 @@ def delete_chunk_with_vector(db: Session, chunk: Chunk) -> None:
     db.flush()
     _sync_chunk_metadata_and_vectors(db, document)
     db.commit()
+    invalidate_keyword_cache()
 
 
 def _delete_stored_file(storage_path: str) -> None:
@@ -469,6 +538,7 @@ def delete_document_with_vectors(db: Session, document: Document) -> None:
     _delete_stored_file(document.storage_path)
     db.delete(document)
     db.commit()
+    invalidate_keyword_cache()
 
 
 def backfill_vector_store(db: Session) -> None:

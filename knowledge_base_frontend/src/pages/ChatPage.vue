@@ -15,6 +15,7 @@ import {
 } from '@element-plus/icons-vue'
 import { chatApi } from '../api/service'
 import { formatDateTime } from '../utils/datetime'
+import { deleteSessionBatch } from '../utils/sessionBatch'
 
 const loading = ref(false)
 const sending = ref(false)
@@ -35,8 +36,12 @@ const dragStartX = ref(0)
 const dragStartY = ref(0)
 const dragMoved = ref(false)
 const streamingStatus = ref('')
+const streamingFlow = ref(null)
 const referenceDetailVisible = ref(false)
 const activeReference = ref(null)
+const batchManageMode = ref(false)
+const batchDeleting = ref(false)
+const selectedSessionIds = ref([])
 
 let streamRenderTimer = null
 let streamRenderQueue = ''
@@ -48,6 +53,10 @@ const MIN_SWIPE_DISTANCE = 18
 const sessionScrollbarHeight = computed(() => `${sidePanelHeight.value}px`)
 const referenceScrollbarHeight = computed(() => `${sidePanelHeight.value}px`)
 const sessionCountLabel = computed(() => `${sessions.value.length} 个会话`)
+const selectedSessionCount = computed(() => selectedSessionIds.value.length)
+const allSessionsSelected = computed(
+  () => sessions.value.length > 0 && selectedSessionIds.value.length === sessions.value.length,
+)
 const messageCountLabel = computed(() => `${messages.value.length} 条消息`)
 const activeQuestionPreview = computed(() => {
   const lastUserMessage = [...messages.value].reverse().find((item) => item.role === 'user')
@@ -80,6 +89,55 @@ const heroSignalCards = computed(() => [
     icon: MagicStick,
   },
 ])
+
+const FLOW_STEPS = [
+  { key: 'start', label: '开始' },
+  { key: 'understanding', label: '理解问题' },
+  { key: 'retrieving', label: '检索知识库' },
+  { key: 'filtering', label: '分片过滤' },
+  { key: 'generating', label: '整理答案' },
+  { key: 'completed', label: '完成' },
+]
+const FLOW_MESSAGES = {
+  start: '开始处理问题',
+  understanding: '正在理解问题',
+  retrieving: '正在检索知识库',
+  filtering: '正在分片过滤',
+  generating: '正在整理答案',
+  completed: '处理完成',
+}
+
+function createDefaultStreamingFlow() {
+  return {
+    current_step: 'start',
+    message: FLOW_MESSAGES.start,
+    steps: FLOW_STEPS.map((step, index) => ({
+      ...step,
+      status: index === 0 ? 'active' : 'waiting',
+    })),
+  }
+}
+
+function normalizeStreamingFlow(payload) {
+  const incomingSteps = Array.isArray(payload?.steps) ? payload.steps : []
+  const incomingMap = new Map(incomingSteps.map((step) => [step.key, step]))
+  const baseFlow = createDefaultStreamingFlow()
+  return {
+    current_step: payload?.current_step || baseFlow.current_step,
+    message: FLOW_MESSAGES[payload?.current_step] || payload?.message || baseFlow.message,
+    steps: FLOW_STEPS.map((step, index) => {
+      const matched = incomingMap.get(step.key)
+      return {
+        ...step,
+        status: matched?.status || baseFlow.steps[index].status,
+      }
+    }),
+  }
+}
+
+function getPendingStatusText(message) {
+  return message?.flow?.message || message?.status || '正在处理中'
+}
 
 function getPointerX(event) {
   return event?.touches?.[0]?.clientX ?? event?.changedTouches?.[0]?.clientX ?? event?.clientX ?? 0
@@ -310,6 +368,7 @@ function openReferenceDetail(item, index) {
 }
 
 function createPendingAssistantMessage() {
+  const flow = createDefaultStreamingFlow()
   return {
     id: `local-assistant-${Date.now()}`,
     role: 'assistant',
@@ -318,7 +377,8 @@ function createPendingAssistantMessage() {
     created_at: new Date().toISOString(),
     pending: true,
     failed: false,
-    status: '正在检索知识库',
+    status: flow.message,
+    flow,
   }
 }
 
@@ -336,6 +396,10 @@ function updatePendingAssistant(messageId, patch) {
 async function loadSessions(selectLatest = true) {
   const data = await chatApi.sessions()
   sessions.value = data
+  selectedSessionIds.value = selectedSessionIds.value.filter((id) => data.some((item) => item.id === id))
+  if (!data.length) {
+    batchManageMode.value = false
+  }
   if (!data.some((item) => item.id === sessionId.value)) {
     sessionId.value = null
     sessionTitle.value = ''
@@ -351,6 +415,10 @@ async function loadSessions(selectLatest = true) {
 }
 
 async function selectSession(id) {
+  if (batchManageMode.value) {
+    toggleSessionSelection(id)
+    return
+  }
   if (dragMoved.value) {
     dragMoved.value = false
     return
@@ -366,6 +434,7 @@ async function selectSession(id) {
       pending: false,
       failed: false,
       status: '',
+      flow: null,
     }))
     const lastAssistant = [...detail.messages].reverse().find((item) => item.role === 'assistant')
     references.value = lastAssistant?.references || []
@@ -390,6 +459,7 @@ async function createSession() {
 async function deleteSession(item) {
   await ElMessageBox.confirm(`确认删除会话“${item.title}”吗？`, '删除确认', { type: 'warning' })
   await chatApi.deleteSession(item.id)
+  selectedSessionIds.value = selectedSessionIds.value.filter((id) => id !== item.id)
   if (sessionId.value === item.id) {
     sessionId.value = null
     sessionTitle.value = ''
@@ -405,7 +475,87 @@ async function deleteSession(item) {
   ElMessage.success('会话已删除')
 }
 
+function toggleBatchManageMode() {
+  if (batchDeleting.value || sending.value) return
+  batchManageMode.value = !batchManageMode.value
+  selectedSessionIds.value = []
+  swipedSessionId.value = null
+  dragSessionId.value = null
+  dragOffsetX.value = 0
+}
+
+function toggleSessionSelection(id) {
+  if (!batchManageMode.value || batchDeleting.value) {
+    return
+  }
+  if (selectedSessionIds.value.includes(id)) {
+    selectedSessionIds.value = selectedSessionIds.value.filter((item) => item !== id)
+    return
+  }
+  selectedSessionIds.value = [...selectedSessionIds.value, id]
+}
+
+function toggleSelectAllSessions() {
+  if (batchDeleting.value) return
+  if (allSessionsSelected.value) {
+    selectedSessionIds.value = []
+    return
+  }
+  selectedSessionIds.value = sessions.value.map((item) => item.id)
+}
+
+async function deleteSelectedSessions() {
+  if (batchDeleting.value || sending.value) return
+  if (!selectedSessionIds.value.length) {
+    ElMessage.warning('请先选择要删除的会话')
+    return
+  }
+  const deletingIds = [...selectedSessionIds.value]
+  batchDeleting.value = true
+  try {
+    try {
+      await ElMessageBox.confirm(
+        `确认批量删除已选中的 ${deletingIds.length} 个会话吗？`,
+        '批量删除确认',
+        { type: 'warning' },
+      )
+    } catch {
+      return
+    }
+    const { successfulIds, failedIds } = await deleteSessionBatch(deletingIds, (id) => chatApi.deleteSession(id))
+    sessions.value = sessions.value.filter((item) => !successfulIds.includes(item.id))
+    if (successfulIds.includes(sessionId.value)) {
+      sessionId.value = null
+      sessionTitle.value = ''
+      messages.value = []
+      references.value = []
+      closeReferenceDetail()
+    }
+    selectedSessionIds.value = failedIds
+    swipedSessionId.value = null
+    batchManageMode.value = failedIds.length > 0
+    try {
+      await loadSessions(false)
+      if (!batchManageMode.value && !sessionId.value && sessions.value.length) {
+        await selectSession(sessions.value[0].id)
+      }
+    } catch {
+      ElMessage.warning('会话列表刷新失败，已删除项已移除，请稍后刷新确认')
+    }
+    if (failedIds.length) {
+      ElMessage.warning(`已删除 ${successfulIds.length} 个会话，${failedIds.length} 个未确认删除，请重试`)
+    } else {
+      ElMessage.success(`已删除 ${successfulIds.length} 个会话`)
+    }
+  } finally {
+    batchDeleting.value = false
+  }
+}
+
 function handleSwipeStart(event, id) {
+  if (batchManageMode.value) {
+    return
+  }
   swipedSessionId.value = swipedSessionId.value === id ? id : null
   dragSessionId.value = id
   dragOffsetX.value = swipedSessionId.value === id ? -DELETE_REVEAL_WIDTH : 0
@@ -415,6 +565,9 @@ function handleSwipeStart(event, id) {
 }
 
 function handleSwipeMove(event, id) {
+  if (batchManageMode.value) {
+    return
+  }
   if (dragSessionId.value !== id) {
     return
   }
@@ -435,6 +588,9 @@ function handleSwipeMove(event, id) {
 }
 
 function handleSwipeEnd(id) {
+  if (batchManageMode.value) {
+    return
+  }
   if (dragSessionId.value !== id) {
     return
   }
@@ -455,7 +611,7 @@ async function ensureSession() {
 }
 
 async function sendMessage(content = draft.value) {
-  if (!content.trim() || sending.value) {
+  if (!content.trim() || sending.value || batchDeleting.value) {
     return
   }
 
@@ -465,7 +621,8 @@ async function sendMessage(content = draft.value) {
   stopStreamRender()
 
   sending.value = true
-  streamingStatus.value = '正在检索知识库'
+  streamingFlow.value = createDefaultStreamingFlow()
+  streamingStatus.value = streamingFlow.value.message
   suggestedQuestions.value = []
   references.value = []
   closeReferenceDetail()
@@ -487,8 +644,20 @@ async function sendMessage(content = draft.value) {
     await chatApi.streamMessage(activeSessionId, userContent, {
       status(payload) {
         const message = payload?.message || '正在处理中'
-        streamingStatus.value = message
-        updatePendingAssistant(pendingAssistant.id, { status: message })
+        if (!streamingFlow.value) {
+          streamingStatus.value = message
+          updatePendingAssistant(pendingAssistant.id, { status: message })
+        }
+        scrollChatToBottom()
+      },
+      progress(payload) {
+        const flow = normalizeStreamingFlow(payload)
+        streamingFlow.value = flow
+        streamingStatus.value = flow.message
+        updatePendingAssistant(pendingAssistant.id, {
+          status: flow.message,
+          flow,
+        })
         scrollChatToBottom()
       },
       evidence(payload) {
@@ -498,17 +667,27 @@ async function sendMessage(content = draft.value) {
       delta(payload) {
         const contentPart = payload?.content || ''
         enqueueStreamText(pendingAssistant.id, contentPart)
-        streamingStatus.value = '正在整理答案'
       },
       end(payload) {
         flushStreamRender(true)
+        const completedFlow = normalizeStreamingFlow({
+          current_step: 'completed',
+          message: '处理完成',
+          steps: FLOW_STEPS.map((step) => ({
+            key: step.key,
+            label: step.label,
+            status: 'done',
+          })),
+        })
         updatePendingAssistant(pendingAssistant.id, {
           content: payload?.answer || messages.value.find((item) => item.id === pendingAssistant.id)?.content || '',
           pending: false,
           failed: false,
           status: '',
+          flow: completedFlow,
         })
         suggestedQuestions.value = payload?.suggestions || []
+        streamingFlow.value = null
         streamingStatus.value = ''
         scrollChatToBottom()
       },
@@ -525,12 +704,14 @@ async function sendMessage(content = draft.value) {
       pending: false,
       failed: true,
       status: '',
+      flow: null,
       content: error?.message || '本次回答生成失败，请稍后重试。',
     })
     ElMessage.error(error?.message || '发送消息失败')
   } finally {
     stopStreamRender()
     sending.value = false
+    streamingFlow.value = null
     streamingStatus.value = ''
   }
 }
@@ -593,7 +774,7 @@ onMounted(async () => {
     </header>
 
     <div class="chat-layout">
-      <el-card class="chat-panel">
+      <el-card class="chat-panel chat-panel--sessions">
         <template #header>
           <div class="chat-panel-header">
             <div>
@@ -601,9 +782,37 @@ onMounted(async () => {
                 <el-icon><ChatDotRound /></el-icon>
                 <span>会话列表</span>
               </div>
-              <div class="chat-panel-meta">支持滑动删除与快速切换</div>
+              <div class="chat-panel-meta">
+                {{ batchManageMode ? '勾选会话后可批量删除' : '支持滑动删除与快速切换' }}
+              </div>
             </div>
-            <div class="chat-panel-meta">{{ sessionCountLabel }}</div>
+            <div class="chat-session-tools">
+              <div class="chat-panel-meta">
+                {{ batchManageMode ? `已选 ${selectedSessionCount} 项` : sessionCountLabel }}
+              </div>
+              <el-button text size="small" :disabled="batchDeleting || sending" @click="toggleBatchManageMode">
+                {{ batchManageMode ? '取消' : '批量管理' }}
+              </el-button>
+              <el-button
+                v-if="batchManageMode && sessions.length"
+                text
+                size="small"
+                @click="toggleSelectAllSessions"
+                :disabled="batchDeleting"
+              >
+                {{ allSessionsSelected ? '取消全选' : '全选' }}
+              </el-button>
+              <el-button
+                v-if="batchManageMode"
+                type="danger"
+                size="small"
+                :disabled="!selectedSessionCount || sending"
+                :loading="batchDeleting"
+                @click="deleteSelectedSessions"
+              >
+                删除所选
+              </el-button>
+            </div>
           </div>
         </template>
 
@@ -613,15 +822,35 @@ onMounted(async () => {
             <div
               v-for="item in sessions"
               :key="item.id"
-              :class="['chat-session-row', { 'is-revealed': swipedSessionId === item.id, 'is-dragging': dragSessionId === item.id }]"
+              :class="[
+                'chat-session-row',
+                {
+                  'is-revealed': !batchManageMode && swipedSessionId === item.id,
+                  'is-dragging': !batchManageMode && dragSessionId === item.id,
+                  'is-batch-mode': batchManageMode,
+                  'is-selected': selectedSessionIds.includes(item.id),
+                },
+              ]"
             >
-              <button class="chat-session-action" type="button" @click.stop="deleteSession(item)">
+              <button
+                v-if="!batchManageMode"
+                class="chat-session-action"
+                type="button"
+                @click.stop="deleteSession(item)"
+              >
                 <el-icon><Delete /></el-icon>
                 <span>删除</span>
               </button>
               <button
                 type="button"
-                :class="['chat-session-item', { active: item.id === sessionId }]"
+                :class="[
+                  'chat-session-item',
+                  {
+                    active: !batchManageMode && item.id === sessionId,
+                    'is-batch-mode': batchManageMode,
+                    'is-selected': selectedSessionIds.includes(item.id),
+                  },
+                ]"
                 :style="{ transform: `translateX(${getSessionTranslateX(item.id)})` }"
                 @click="selectSession(item.id)"
                 @touchstart.passive="handleSwipeStart($event, item.id)"
@@ -632,6 +861,14 @@ onMounted(async () => {
                 @mouseup="handleSwipeEnd(item.id)"
                 @mouseleave="handleSwipeEnd(item.id)"
               >
+                <span v-if="batchManageMode" class="chat-session-check">
+                  <el-checkbox
+                    :model-value="selectedSessionIds.includes(item.id)"
+                    :disabled="batchDeleting"
+                    @click.stop
+                    @change="toggleSessionSelection(item.id)"
+                  />
+                </span>
                 <span class="chat-session-title">{{ item.title }}</span>
               </button>
             </div>
@@ -651,11 +888,23 @@ onMounted(async () => {
         </template>
 
         <div class="chat-composer">
-          <div v-if="sending && streamingStatus" class="chat-stream-banner">
-            <el-icon class="is-loading">
-              <Loading />
-            </el-icon>
-            <span>{{ streamingStatus }}</span>
+          <div v-if="sending && streamingFlow" class="chat-stream-banner">
+            <div class="chat-stream-banner-head">
+              <el-icon class="is-loading">
+                <Loading />
+              </el-icon>
+              <span>{{ streamingFlow.message || streamingStatus }}</span>
+            </div>
+            <div class="chat-progress-steps">
+              <div
+                v-for="step in streamingFlow.steps"
+                :key="step.key"
+                :class="['chat-progress-step', `is-${step.status}`]"
+              >
+                <span class="chat-progress-node"></span>
+                <span class="chat-progress-label">{{ step.label }}</span>
+              </div>
+            </div>
           </div>
 
           <el-scrollbar ref="chatBodyRef" max-height="540px" v-loading="loading">
@@ -684,7 +933,7 @@ onMounted(async () => {
                     <el-icon class="is-loading">
                       <Loading />
                     </el-icon>
-                    <span>{{ message.status || '正在整理答案' }}</span>
+                    <span>{{ getPendingStatusText(message) }}</span>
                   </div>
                   <div
                     v-if="message.content"

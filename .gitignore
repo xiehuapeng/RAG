@@ -21,6 +21,7 @@ knowledge_base_backend/data/*
 knowledge_base_backend/static/
 logs/
 knowledge_base_backend/data/
+knowledge_base_backend/tests/qa_eval/reports*/
 
 # Frontend runtime artifacts
 knowledge_base_frontend/*.log

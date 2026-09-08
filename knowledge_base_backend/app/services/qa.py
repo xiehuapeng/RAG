@@ -11,10 +11,10 @@ from typing import Any
 
 # 读取问答链路相关配置。
 from app.config import (
-    MINIMAX_MAX_OUTPUT_TOKENS,
-    MINIMAX_MODEL_NAME,
-    MINIMAX_REASONING_SPLIT,
-    MINIMAX_TEMPERATURE,
+    LLM_MAX_OUTPUT_TOKENS,
+    LLM_MODEL_NAME,
+    LLM_REASONING_SPLIT,
+    LLM_TEMPERATURE,
     QA_HISTORY_LIMIT,
     QA_MAX_CONTEXT_CHARS,
 )
@@ -401,14 +401,14 @@ def build_session_summary(
 
 
 def build_generation_settings() -> dict[str, Any]:
-    # extra_body 用于透传 MiniMax 的扩展参数。
+    # extra_body 用于透传 LLM 的扩展参数。
     extra_body = {}
-    if MINIMAX_REASONING_SPLIT:
+    if LLM_REASONING_SPLIT:
         extra_body["reasoning_split"] = True
     # 将模型相关配置统一集中返回，避免同步与流式路径不一致。
     return {
-        "model": MINIMAX_MODEL_NAME,
-        "temperature": MINIMAX_TEMPERATURE,
-        "max_output_tokens": MINIMAX_MAX_OUTPUT_TOKENS,
+        "model": LLM_MODEL_NAME,
+        "temperature": LLM_TEMPERATURE,
+        "max_output_tokens": LLM_MAX_OUTPUT_TOKENS,
         "extra_body": extra_body,
     }

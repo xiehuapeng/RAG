@@ -427,6 +427,10 @@ select {
   backdrop-filter: blur(18px);
 }
 
+.chat-panel--sessions {
+  align-self: start;
+}
+
 .chat-panel .el-card__header {
   padding: 18px 20px 0;
   border-bottom: none;
@@ -443,6 +447,14 @@ select {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 12px;
+}
+
+.chat-session-tools {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .chat-panel-title {
@@ -471,6 +483,10 @@ select {
   border: 1px solid rgba(148, 163, 184, 0.12);
 }
 
+.chat-session-row.is-selected {
+  border-color: rgba(97, 165, 255, 0.42);
+}
+
 .chat-session-action {
   position: absolute;
   top: 0;
@@ -489,6 +505,9 @@ select {
   position: relative;
   z-index: 1;
   width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   min-height: 58px;
   padding: 14px 16px;
   border: 0;
@@ -497,6 +516,15 @@ select {
   text-align: left;
   cursor: pointer;
   transition: transform 0.18s ease, background 0.18s ease, box-shadow 0.18s ease, color 0.18s ease;
+}
+
+.chat-session-item.is-batch-mode {
+  justify-content: flex-start;
+}
+
+.chat-session-item.is-selected {
+  background: linear-gradient(135deg, rgba(97, 165, 255, 0.18), rgba(56, 189, 248, 0.08));
+  box-shadow: inset 0 0 0 1px rgba(97, 165, 255, 0.24);
 }
 
 .chat-session-item:hover {
@@ -510,21 +538,88 @@ select {
 
 .chat-session-title {
   display: block;
+  flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 700;
 }
 
+.chat-session-check {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
 .chat-stream-banner {
+  display: grid;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(10, 18, 32, 0.58);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  color: #dbeafe;
+  font-size: 12px;
+}
+
+.chat-stream-banner-head {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 12px;
-  border-radius: 14px;
-  background: rgba(97, 165, 255, 0.12);
-  color: #cfe0ff;
-  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.chat-progress-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chat-progress-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  background: rgba(30, 41, 59, 0.78);
+  color: #cbd5e1;
+  line-height: 1;
+}
+
+.chat-progress-node {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  border: none;
+  background: currentColor;
+  box-shadow: none;
+  opacity: 0.92;
+}
+
+.chat-progress-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.chat-progress-step.is-active {
+  color: #facc15;
+  background: rgba(113, 63, 18, 0.3);
+  border-color: rgba(250, 204, 21, 0.34);
+}
+
+.chat-progress-step.is-done {
+  color: #22c55e;
+  background: rgba(20, 83, 45, 0.28);
+  border-color: rgba(34, 197, 94, 0.3);
+}
+
+.chat-progress-step.is-skipped {
+  color: #ef4444;
+  background: rgba(127, 29, 29, 0.3);
+  border-color: rgba(239, 68, 68, 0.26);
 }
 
 .chat-pending-line {
@@ -534,6 +629,7 @@ select {
   margin-bottom: 8px;
   color: rgba(226, 232, 240, 0.76);
   font-size: 13px;
+  flex-wrap: wrap;
 }
 
 .chat-message {
@@ -1068,6 +1164,11 @@ select {
   .panel-card,
   .chat-panel {
     border-radius: 18px;
+  }
+
+  .chat-stream-banner {
+    gap: 8px;
+    padding: 9px 10px;
   }
 }
 
@@ -2263,6 +2364,11 @@ body,
   background: rgba(255, 255, 255, 0.82);
 }
 
+.chat-session-row.is-selected {
+  background: rgba(219, 234, 254, 0.92);
+  border-color: rgba(96, 165, 250, 0.34);
+}
+
 .chat-session-action {
   display: inline-flex;
   align-items: center;
@@ -2277,6 +2383,11 @@ body,
 .chat-session-item {
   background: rgba(255, 255, 255, 0.78);
   color: #0f172a;
+}
+
+.chat-session-item.is-selected {
+  background: linear-gradient(135deg, rgba(219, 234, 254, 0.96), rgba(239, 246, 255, 0.96));
+  box-shadow: inset 0 0 0 1px rgba(96, 165, 250, 0.28);
 }
 
 .chat-session-item:hover {

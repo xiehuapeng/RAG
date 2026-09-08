@@ -1,0 +1,1002 @@
+[
+{
+"id": "qa_001",
+"name": "挂账功能菜单路径查询",
+"question": "我想给客户做挂账操作，应该在系统里找哪个菜单？",
+"expected_keywords": ["应收管理", "挂账管理", "挂账申请"],
+"optional_keywords": ["OC 前台", "物联网集中化系统"],
+"threshold": 0.67,
+"category": "menu_path",
+"source_basis": "CMIOT-C04 挂账操作指南 3. 挂账 - 操作步骤"
+},
+{
+"id": "qa_002",
+"name": "挂账申请前置条件",
+"question": "给客户发起挂账申请，需要满足什么前提条件？",
+"expected_keywords": ["历史欠费账单", "未销账", "申请权限"],
+"optional_keywords": ["审核权限", "角色互斥"],
+"threshold": 0.67,
+"category": "restrictions",
+"source_basis": "CMIOT-C04 挂账操作指南 2. 挂账 - 预置条件"
+},
+{
+"id": "qa_003",
+"name": "普通员工挂账流程",
+"question": "我是普通客户经理，给客户挂账要走什么流程？",
+"expected_keywords": ["挂账申请", "审核", "挂账处理"],
+"optional_keywords": ["取消", "解挂", "调账"],
+"threshold": 0.67,
+"category": "operation_steps",
+"source_basis": "CMIOT-C04 挂账操作指南 1. 挂账 - 功能描述"
+},
+{
+"id": "qa_004",
+"name": "挂账金额限制要求",
+"question": "给客户挂账的时候，挂账金额有什么要求？",
+"expected_keywords": ["不大于", "欠费金额"],
+"optional_keywords": ["勾选费用项", "填写具体数值"],
+"threshold": 1.0,
+"category": "restrictions",
+"source_basis": "CMIOT-C04 挂账操作指南 3. 挂账 - 操作步骤"
+},
+{
+"id": "qa_005",
+"name": "广东挂账业务流程",
+"question": "广东的客户挂账，流程和其他地方有什么不一样？",
+"expected_keywords": ["省侧发起", "省 OA 审批", "省 CRM 同步"],
+"optional_keywords": ["CMIOT 处理", "批量挂账"],
+"threshold": 0.67,
+"category": "operation_steps",
+"source_basis": "CMIOT-C04 挂账操作指南 4. 挂账 - 广东挂账业务"
+},
+{
+"id": "qa_006",
+"name": "挂账审核查询条件",
+"question": "审核挂账申请的时候，查询日期有什么限制？",
+"expected_keywords": ["起始日期", "结束日期", "不大于 30 天"],
+"optional_keywords": ["未审批状态"],
+"threshold": 0.75,
+"category": "restrictions",
+"source_basis": "CMIOT-C04 挂账操作指南 3. 挂账 - 操作步骤"
+},
+{
+"id": "qa_007",
+"name": "挂账处理操作类型",
+"question": "挂账申请通过后，都能做哪些处理操作？",
+"expected_keywords": ["取消", "挂账", "解挂", "调账"],
+"optional_keywords": ["状态匹配"],
+"threshold": 0.75,
+"category": "operation_steps",
+"source_basis": "CMIOT-C04 挂账操作指南 3. 挂账 - 操作步骤"
+},
+{
+"id": "qa_008",
+"name": "挂账与欠费金额影响",
+"question": "挂账申请和挂账成功，对客户欠费金额有什么影响？",
+"expected_keywords": ["审批中无影响", "挂账成功变更"],
+"optional_keywords": ["欠费金额变化"],
+"threshold": 0.75,
+"category": "account_billing",
+"source_basis": "CMIOT-C04 挂账操作指南 5. 挂账 - 注意事项"
+},
+{
+"id": "qa_009",
+"name": "缴费功能菜单路径",
+"question": "帮客户线下缴费，系统菜单怎么进？",
+"expected_keywords": ["应收管理", "缴费管理", "缴费"],
+"optional_keywords": ["OC 前台", "物联网集中化系统"],
+"threshold": 0.67,
+"category": "menu_path",
+"source_basis": "CMIOT-C01 缴费操作指南 3.1 缴费"
+},
+{
+"id": "qa_010",
+"name": "缴费方式支持类型",
+"question": "给客户缴费，支持哪些缴费方式？",
+"expected_keywords": ["现金", "支付宝", "微信", "公对公转账"],
+"optional_keywords": ["信用卡", "借记卡", "承兑汇票"],
+"threshold": 0.67,
+"category": "other",
+"source_basis": "CMIOT-C01 缴费操作指南 3.1 缴费"
+},
+{
+"id": "qa_011",
+"name": "滞纳金计算规则",
+"question": "客户欠费产生的滞纳金是怎么算的？",
+"expected_keywords": ["欠费 × 天数 ×0.003", "每日计算"],
+"optional_keywords": ["缴费周期后", "销账停止"],
+"threshold": 0.75,
+"category": "account_billing",
+"source_basis": "CMIOT-C01 缴费操作指南 1. 缴费操作 - 功能概述"
+},
+{
+"id": "qa_012",
+"name": "缴费回退时间限制",
+"question": "客户缴费错了要回退，最多能回退多久前的？",
+"expected_keywords": ["90 天内", "缴费回退"],
+"optional_keywords": ["全额回退", "不支持部分"],
+"threshold": 1.0,
+"category": "restrictions",
+"source_basis": "CMIOT-C01 缴费操作指南 4. 缴费操作 - 注意事项"
+},
+{
+"id": "qa_013",
+"name": "发票与缴费回退关系",
+"question": "客户已经开了预存发票，还能做缴费回退吗？",
+"expected_keywords": ["发票冲红", "作废", "先处理发票"],
+"optional_keywords": ["发票余额不足"],
+"threshold": 0.75,
+"category": "restrictions",
+"source_basis": "CMIOT-C01 缴费操作指南 4. 缴费操作 - 注意事项"
+},
+{
+"id": "qa_014",
+"name": "批量缴费文件要求",
+"question": "给多个客户批量缴费，上传文件有什么要求？",
+"expected_keywords": ["文件名唯一", "无中文", "删除定义行"],
+"optional_keywords": ["金额单位分", "英文逗号"],
+"threshold": 0.67,
+"category": "batch_operation",
+"source_basis": "CMIOT-C01 缴费操作指南 3.3 缴费操作 - 批量缴费"
+},
+{
+"id": "qa_015",
+"name": "ESOP 缴费回退限制",
+"question": "通过 ESOP 资金池缴费的客户，能在 CMIOT 回退吗？",
+"expected_keywords": ["不允许", "省侧原渠道"],
+"optional_keywords": ["指定省份限制"],
+"threshold": 1.0,
+"category": "restrictions",
+"source_basis": "CMIOT-C01 缴费操作指南 4. 缴费操作 - 注意事项"
+},
+{
+"id": "qa_016",
+"name": "调账功能菜单路径",
+"question": "客户费用有误要调账，系统菜单在哪里？",
+"expected_keywords": ["应收管理", "调账管理", "调账申请"],
+"optional_keywords": ["OC 前台", "物联网集中化系统"],
+"threshold": 0.67,
+"category": "menu_path",
+"source_basis": "CMIOT-C02 调账操作指南 3.1 调账流程 - 调帐申请"
+},
+{
+"id": "qa_017",
+"name": "调账类型分类",
+"question": "给客户调账，都有哪些调账类型可以选？",
+"expected_keywords": ["余额调整", "账单调整"],
+"optional_keywords": ["调增", "调减"],
+"threshold": 0.75,
+"category": "other",
+"source_basis": "CMIOT-C02 调账操作指南 1. 调账 - 功能描述"
+},
+{
+"id": "qa_018",
+"name": "调账角色权限要求",
+"question": "发起和审批调账，操作员角色有什么要求？",
+"expected_keywords": ["申请管理员", "审批管理员", "互斥"],
+"optional_keywords": ["地市 / 省级", "区县级限制"],
+"threshold": 0.75,
+"category": "restrictions",
+"source_basis": "CMIOT-C02 调账操作指南 2. 调账 - 预置条件"
+},
+{
+"id": "qa_019",
+"name": "滞纳金调账顺序",
+"question": "客户有滞纳金和其他欠费，调账先调哪个？",
+"expected_keywords": ["先调滞纳金", "再调其他账单"],
+"optional_keywords": ["账单调整"],
+"threshold": 1.0,
+"category": "operation_steps",
+"source_basis": "CMIOT-C02 调账操作指南 3.1 调账流程 - 调帐申请"
+},
+{
+"id": "qa_020",
+"name": "广东调账业务流程",
+"question": "广东客户调账，是不是要在省侧走流程？",
+"expected_keywords": ["省侧发起", "省 OA 审批", "省 CRM 同步"],
+"optional_keywords": ["CMIOT 下架功能", "批量调账"],
+"threshold": 0.67,
+"category": "operation_steps",
+"source_basis": "CMIOT-C02 调账操作指南 4. 调账 - 广东调账业务"
+},
+{
+"id": "qa_021",
+"name": "调账回退时间限制",
+"question": "调账操作错了，还能回退吗？有时间限制吗？",
+"expected_keywords": ["当月可回退", "次月不可回退"],
+"optional_keywords": ["调账回退菜单"],
+"threshold": 0.75,
+"category": "restrictions",
+"source_basis": "CMIOT-C02 调账操作指南 5. 调账 - 注意事项"
+},
+{
+"id": "qa_022",
+"name": "调账费用发票规则",
+"question": "调账的费用，能不能给客户开发票？",
+"expected_keywords": ["不支持", "开具发票"],
+"optional_keywords": [],
+"threshold": 1.0,
+"category": "restrictions",
+"source_basis": "CMIOT-C02 调账操作指南 5. 调账 - 注意事项"
+},
+{
+"id": "qa_023",
+"name": "退款申请菜单路径",
+"question": "客户要退预存款，系统里怎么操作？",
+"expected_keywords": ["应收管理", "退款管理", "退款申请"],
+"optional_keywords": ["OC 前台", "物联网集中化系统"],
+"threshold": 0.67,
+"category": "menu_path",
+"source_basis": "CMIOT-C03 退款以及 OneLink 缴费冲正操作指南 3. 退款申请操作步骤"
+},
+{
+"id": "qa_024",
+"name": "退款金额限制要求",
+"question": "给客户退预存款，退款金额有什么限制？",
+"expected_keywords": ["小于等于", "预存款金额"],
+"optional_keywords": ["赠金不可退", "调账金额不可退"],
+"threshold": 0.75,
+"category": "restrictions",
+"source_basis": "CMIOT-C03 退款以及 OneLink 缴费冲正操作指南 4. 退款申请注意事项"
+},
+{
+"id": "qa_025",
+"name": "OneLink 冲正条件",
+"question": "OneLink 平台充值的钱，要冲正退款要满足什么？",
+"expected_keywords": ["90 天内", "集团统付", "未开发票"],
+"optional_keywords": ["账户余额充足", "未销户"],
+"threshold": 0.67,
+"category": "restrictions",
+"source_basis": "CMIOT-C03 退款以及 OneLink 缴费冲正操作指南 6.OneLink 缴费冲正前置条件"
+},
+{
+"id": "qa_026",
+"name": "OneLink 冲正时间限制",
+"question": "OneLink 充值冲正，有没有不能操作的时间段？",
+"expected_keywords": ["22:50-00:10", "禁止操作"],
+"optional_keywords": [],
+"threshold": 1.0,
+"category": "restrictions",
+"source_basis": "CMIOT-C03 退款以及 OneLink 缴费冲正操作指南 8.OneLink 缴费冲正注意事项"
+},
+{
+"id": "qa_027",
+"name": "转账功能菜单路径",
+"question": "客户要把预存款转到另一个账户，菜单在哪？",
+"expected_keywords": ["应收管理", "转账管理", "转账申请"],
+"optional_keywords": ["OC 前台", "物联网集中化系统"],
+"threshold": 0.67,
+"category": "menu_path",
+"source_basis": "CMIOT-C06 转账操作指南 3. 转账 - 操作步骤"
+},
+{
+"id": "qa_028",
+"name": "预存款转账限制",
+"question": "客户预存款转账，哪些钱不能转？",
+"expected_keywords": ["调账金额", "已开发票", "未结算金额"],
+"optional_keywords": [],
+"threshold": 0.75,
+"category": "restrictions",
+"source_basis": "CMIOT-C06 转账操作指南 4. 转账 - 注意事项"
+},
+{
+"id": "qa_029",
+"name": "欠费数据查询菜单",
+"question": "查客户的欠费数据，应该进哪个菜单？",
+"expected_keywords": ["应收管理", "欠费管理", "欠费数据查询"],
+"optional_keywords": ["OC 前台", "物联网集中化系统"],
+"threshold": 0.67,
+"category": "menu_path",
+"source_basis": "CMIOT-C07 欠费数据查询操作指南 3. 欠费数据查询 - 操作步骤"
+},
+{
+"id": "qa_030",
+"name": "欠费数据查询范围",
+"question": "查欠费数据的时候，能不能跨省查其他地市的？",
+"expected_keywords": ["不能", "所在省份地市"],
+"optional_keywords": ["数据权限限制"],
+"threshold": 1.0,
+"category": "restrictions",
+"source_basis": "CMIOT-C07 欠费数据查询操作指南 3. 欠费数据查询 - 操作步骤"
+},
+{
+"id": "qa_031",
+"name": "逾期欠费管控规则",
+"question": "客户逾期欠费多久会被限制新开业务？",
+"expected_keywords": ["超 6 个月", "后付费", "红名单预付费"],
+"optional_keywords": ["白名单不受限"],
+"threshold": 0.67,
+"category": "restrictions",
+"source_basis": "CMIOT-C07 欠费数据查询操作指南 4. 欠费数据查询 - 逾期欠费判定注意事宜"
+},
+{
+"id": "qa_032",
+"name": "账单查询菜单路径",
+"question": "给客户查电子对账单和明细，菜单怎么进？",
+"expected_keywords": ["集团客户 360 视图", "账务", "账单"],
+"optional_keywords": ["号码级账单导出"],
+"threshold": 0.67,
+"category": "menu_path",
+"source_basis": "CMIOT-C08 电子对账单及用户账单查询操作指南 3. 电子对账单及用户账单查询 - 操作步骤"
+},
+{
+"id": "qa_033",
+"name": "SIM 卡费导出规则",
+"question": "导出客户 SIM 卡费明细，会体现调账挂账的金额吗？",
+"expected_keywords": ["不体现", "调账", "挂账", "优惠减免"],
+"optional_keywords": [],
+"threshold": 0.75,
+"category": "account_billing",
+"source_basis": "CMIOT-C08 电子对账单及用户账单查询操作指南 3.3 电子对账单及用户账单查询 - 操作步骤 - SIM 卡费导出"
+},
+{
+"id": "qa_034",
+"name": "滞纳金减免菜单",
+"question": "客户要减免滞纳金，系统操作菜单在哪里？",
+"expected_keywords": ["应收管理", "滞纳金减免"],
+"optional_keywords": ["滞纳金减免审核"],
+"threshold": 0.67,
+"category": "menu_path",
+"source_basis": "CMIOT-C10 滞纳金减免以及导出操作指南 3. 滞纳金减免操作步骤"
+},
+{
+"id": "qa_035",
+"name": "滞纳金减免发票限制",
+"question": "客户开了月结发票，还能减免滞纳金吗？",
+"expected_keywords": ["不能", "发票冲红", "作废"],
+"optional_keywords": [],
+"threshold": 0.75,
+"category": "restrictions",
+"source_basis": "CMIOT-C10 滞纳金减免以及导出操作指南 5. 滞纳金减免注意事项"
+},
+{
+"id": "qa_036",
+"name": "滞纳金减免流程",
+"question": "给客户申请减免滞纳金，要走什么流程？",
+"expected_keywords": ["申请", "审批", "确认"],
+"optional_keywords": ["上传附件"],
+"threshold": 0.67,
+"category": "operation_steps",
+"source_basis": "CMIOT-C10 滞纳金减免以及导出操作指南 3. 滞纳金减免操作步骤"
+},
+{
+"id": "qa_037",
+"name": "滞纳金导出菜单",
+"question": "要导出客户滞纳金数据，进哪个菜单？",
+"expected_keywords": ["应收管理", "缴费管理", "滞纳金导出"],
+"optional_keywords": ["异步导出"],
+"threshold": 0.67,
+"category": "menu_path",
+"source_basis": "CMIOT-C10 滞纳金减免以及导出操作指南 8. 滞纳金导出操作步骤"
+},
+{
+"id": "qa_038",
+"name": "销账日志查询菜单",
+"question": "查客户的销账记录，系统里怎么查？",
+"expected_keywords": ["应收管理", "查询", "查询销账日志"],
+"optional_keywords": ["账期必选"],
+"threshold": 0.67,
+"category": "menu_path",
+"source_basis": "CMIOT-C12 销账数据查询操作指南 3. 销账数据查询 - 操作步骤"
+},
+{
+"id": "qa_039",
+"name": "销账查询必填条件",
+"question": "查询销账日志，哪些条件是必须填的？",
+"expected_keywords": ["账期", "账户编码", "客户编码二选一"],
+"optional_keywords": [],
+"threshold": 0.75,
+"category": "required_materials",
+"source_basis": "CMIOT-C12 销账数据查询操作指南 4. 销账数据查询 - 注意事项"
+},
+{
+"id": "qa_040",
+"name": "预开预存发票菜单",
+"question": "给客户预开预存发票，系统菜单在哪？",
+"expected_keywords": ["应收管理", "发票管理", "预开预存发票"],
+"optional_keywords": ["OC 前台", "物联网集中化系统"],
+"threshold": 0.67,
+"category": "menu_path",
+"source_basis": "CMIOT-C15 预开预存发票操作指南 3. 预开预存发票 - 操作步骤"
+},
+{
+"id": "qa_041",
+"name": "预开额度金额限制",
+"question": "给客户申请预开预存发票额度，最多能申请多少？",
+"expected_keywords": ["100 万", "单笔上限"],
+"optional_keywords": [],
+"threshold": 1.0,
+"category": "restrictions",
+"source_basis": "CMIOT-C15 预开预存发票操作指南 3. 预开预存发票 - 操作步骤"
+},
+{
+"id": "qa_042",
+"name": "预开额度重复申请限制",
+"question": "客户已经申请过预开额度，还能再申请吗？",
+"expected_keywords": ["未回款", "禁止", "完全回款后"],
+"optional_keywords": [],
+"threshold": 0.75,
+"category": "restrictions",
+"source_basis": "CMIOT-C15 预开预存发票操作指南 3. 预开预存发票 - 操作步骤"
+},
+{
+"id": "qa_043",
+"name": "预开额度回退限制",
+"question": "预开预存额度想回退，有什么条件不能退？",
+"expected_keywords": ["已回款", "已开票", "超 180 天"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "restrictions",
+"source_basis": "CMIOT-C15 预开预存发票操作指南 3. 预开预存发票 - 操作步骤"
+},
+{
+"id": "qa_044",
+"name": "预存专票开具账户要求",
+"question": "什么样的客户账户能开预存增值税专票？",
+"expected_keywords": ["统付账户", "专票账户属性"],
+"optional_keywords": ["BBC 账户不支持"],
+"threshold": 0.75,
+"category": "restrictions",
+"source_basis": "CMIOT-C15 预开预存发票操作指南 5. 预开预存发票 - 注意事项"
+},
+{
+"id": "qa_045",
+"name": "挂账查询菜单路径",
+"question": "想查客户挂账申请的进度，进哪个菜单？",
+"expected_keywords": ["应收管理", "挂账管理", "挂账查询"],
+"optional_keywords": ["流程状态"],
+"threshold": 0.67,
+"category": "menu_path",
+"source_basis": "CMIOT-C04 挂账操作指南 3. 挂账 - 操作步骤"
+},
+{
+"id": "qa_046",
+"name": "审核员工挂账流程",
+"question": "我有挂账审核权限，给客户挂账流程是什么？",
+"expected_keywords": ["挂账申请", "直接处理"],
+"optional_keywords": ["无需审核"],
+"threshold": 0.75,
+"category": "operation_steps",
+"source_basis": "CMIOT-C04 挂账操作指南 1. 挂账 - 功能描述"
+},
+{
+"id": "qa_047",
+"name": "挂账申请查询方式",
+"question": "发起挂账申请时，可以用哪些信息查客户账户？",
+"expected_keywords": ["账户编码", "客户编码", "用户号码", "群编码"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "operation_steps",
+"source_basis": "CMIOT-C04 挂账操作指南 3. 挂账 - 操作步骤"
+},
+{
+"id": "qa_048",
+"name": "批量挂账文件要求",
+"question": "广东批量挂账，上传文件有什么要求？",
+"expected_keywords": ["省 CRM 上传", "CMIOT 处理", "回执文件"],
+"optional_keywords": ["文件解压"],
+"threshold": 0.67,
+"category": "batch_operation",
+"source_basis": "CMIOT-C04 挂账操作指南 4. 挂账 - 广东挂账业务"
+},
+{
+"id": "qa_049",
+"name": "缴费找零方式",
+"question": "客户缴费多交了，找零可以怎么处理？",
+"expected_keywords": ["转预存", "找零"],
+"optional_keywords": [],
+"threshold": 1.0,
+"category": "other",
+"source_basis": "CMIOT-C01 缴费操作指南 3.1 缴费"
+},
+{
+"id": "qa_050",
+"name": "支票缴费限制",
+"question": "用支票给客户缴费，能和其他方式一起用吗？",
+"expected_keywords": ["不能", "单独使用"],
+"optional_keywords": ["需要审核"],
+"threshold": 1.0,
+"category": "restrictions",
+"source_basis": "CMIOT-C01 缴费操作指南 3.1 缴费"
+},
+{
+"id": "qa_051",
+"name": "大账户缴费操作",
+"question": "客户是大账户，账单太多怎么缴费？",
+"expected_keywords": ["账单明细级", "异步查询", "下载文件"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "operation_steps",
+"source_basis": "CMIOT-C01 缴费操作指南 3.1 缴费"
+},
+{
+"id": "qa_052",
+"name": "批量缴费回退要求",
+"question": "批量缴费要回退，需要填什么关键信息？",
+"expected_keywords": ["交易标识", "必填"],
+"optional_keywords": ["外部流水号"],
+"threshold": 0.75,
+"category": "required_materials",
+"source_basis": "CMIOT-C01 缴费操作指南 3.4 缴费操作 - 批量缴费回退"
+},
+{
+"id": "qa_053",
+"name": "代付账户缴费限制",
+"question": "省 BOSS 合账代付的客户账户，能做缴费回退吗？",
+"expected_keywords": ["不允许", "生效代付关系"],
+"optional_keywords": ["在途申请限制"],
+"threshold": 0.75,
+"category": "restrictions",
+"source_basis": "CMIOT-C01 缴费操作指南 4. 缴费操作 - 注意事项"
+},
+{
+"id": "qa_054",
+"name": "调账原因类别",
+"question": "发起调账申请，原因类别有哪些选项？",
+"expected_keywords": ["计费账单", "网络", "公益性", "公免自用", "业务员差错"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "other",
+"source_basis": "CMIOT-C02 调账操作指南 3.1 调账流程 - 调帐申请"
+},
+{
+"id": "qa_055",
+"name": "调账附件要求",
+"question": "调账申请上传附件，有什么格式和大小限制？",
+"expected_keywords": ["doc", "pdf", "jpg", "100M"],
+"optional_keywords": ["zip", "rar"],
+"threshold": 0.67,
+"category": "required_materials",
+"source_basis": "CMIOT-C02 调账操作指南 3.1 调账流程 - 调帐申请"
+},
+{
+"id": "qa_056",
+"name": "批量调账审批权限",
+"question": "审批批量调账，需要什么角色权限？",
+"expected_keywords": ["批量调账审批管理员", "数据权限"],
+"optional_keywords": [],
+"threshold": 0.75,
+"category": "restrictions",
+"source_basis": "CMIOT-C02 调账操作指南 2. 调账 - 预置条件"
+},
+{
+"id": "qa_057",
+"name": "调账确认操作",
+"question": "调账申请审批通过后，还需要做什么操作？",
+"expected_keywords": ["调账确认", "查询交易申请"],
+"optional_keywords": ["取消操作"],
+"threshold": 0.67,
+"category": "operation_steps",
+"source_basis": "CMIOT-C02 调账操作指南 3.5 调账流程 - 调账确认"
+},
+{
+"id": "qa_058",
+"name": "BBC 账户调账限制",
+"question": "物联网 BBC 用户的账单，能在 CMIOT 调账吗？",
+"expected_keywords": ["不能", "省公司代付账单调账"],
+"optional_keywords": [],
+"threshold": 1.0,
+"category": "restrictions",
+"source_basis": "CMIOT-C02 调账操作指南 5. 调账 - 注意事项"
+},
+{
+"id": "qa_059",
+"name": "退款方式类型",
+"question": "给客户退款，支持哪些退款方式？",
+"expected_keywords": ["现金", "信用卡", "转财务统付"],
+"optional_keywords": ["借记卡", "支票"],
+"threshold": 0.67,
+"category": "other",
+"source_basis": "CMIOT-C03 退款以及 OneLink 缴费冲正操作指南 3. 退款申请操作步骤"
+},
+{
+"id": "qa_060",
+"name": "退款审批权限",
+"question": "退款申请需要谁来审批？",
+"expected_keywords": ["省级审批管理员", "地市审批管理员"],
+"optional_keywords": [],
+"threshold": 0.75,
+"category": "restrictions",
+"source_basis": "CMIOT-C03 退款以及 OneLink 缴费冲正操作指南 2. 退款申请前置条件"
+},
+{
+"id": "qa_061",
+"name": "OneLink 冲正全额要求",
+"question": "OneLink 充值冲正，能只退一部分金额吗？",
+"expected_keywords": ["不能", "全额退款"],
+"optional_keywords": [],
+"threshold": 1.0,
+"category": "restrictions",
+"source_basis": "CMIOT-C03 退款以及 OneLink 缴费冲正操作指南 8.OneLink 缴费冲正注意事项"
+},
+{
+"id": "qa_062",
+"name": "转账操作前提",
+"question": "给客户做预存款转账，转出账户要满足什么？",
+"expected_keywords": ["预存款大于 0", "转账权限"],
+"optional_keywords": ["营业员角色"],
+"threshold": 0.75,
+"category": "restrictions",
+"source_basis": "CMIOT-C06 转账操作指南 2. 转账 - 预置条件"
+},
+{
+"id": "qa_063",
+"name": "欠费数据生成时间",
+"question": "系统的欠费数据是什么时候生成的？",
+"expected_keywords": ["每日凌晨 0 点", "统计汇总"],
+"optional_keywords": [],
+"threshold": 0.75,
+"category": "account_billing",
+"source_basis": "CMIOT-C07 欠费数据查询操作指南 1. 欠费数据查询 - 功能描述"
+},
+{
+"id": "qa_064",
+"name": "欠费导出鉴权要求",
+"question": "导出欠费数据文件，需要做什么验证？",
+"expected_keywords": ["4A 金库鉴权", "通过后导出"],
+"optional_keywords": ["csv 格式"],
+"threshold": 0.75,
+"category": "restrictions",
+"source_basis": "CMIOT-C07 欠费数据查询操作指南 3. 欠费数据查询 - 操作步骤"
+},
+{
+"id": "qa_065",
+"name": "账单导出类型",
+"question": "给客户导出账单，支持哪些导出模式？",
+"expected_keywords": ["集团账户", "单卡账户", "批量导出"],
+"optional_keywords": ["全部导出"],
+"threshold": 0.67,
+"category": "batch_operation",
+"source_basis": "CMIOT-C08 电子对账单及用户账单查询操作指南 3. 电子对账单及用户账单查询 - 操作步骤"
+},
+{
+"id": "qa_066",
+"name": "滞纳金减免角色互斥",
+"question": "滞纳金减免的申请和审批，能同一个人做吗？",
+"expected_keywords": ["不能", "角色互斥"],
+"optional_keywords": [],
+"threshold": 1.0,
+"category": "restrictions",
+"source_basis": "CMIOT-C10 滞纳金减免以及导出操作指南 2. 滞纳金减免预置条件"
+},
+{
+"id": "qa_067",
+"name": "滞纳金减免账户限制",
+"question": "哪些客户账户不能做滞纳金减免？",
+"expected_keywords": ["已销户", "测试卡个付", "合打账户"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "restrictions",
+"source_basis": "CMIOT-C10 滞纳金减免以及导出操作指南 4. 省侧滞纳金减免"
+},
+{
+"id": "qa_068",
+"name": "滞纳金导出单位",
+"question": "导出的滞纳金数据，金额单位是什么？",
+"expected_keywords": ["分"],
+"optional_keywords": [],
+"threshold": 1.0,
+"category": "account_billing",
+"source_basis": "CMIOT-C10 滞纳金减免以及导出操作指南 8. 滞纳金导出操作步骤"
+},
+{
+"id": "qa_069",
+"name": "销账导出格式",
+"question": "导出销账记录，支持哪些文件格式？",
+"expected_keywords": ["excel", "csv", "text"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "batch_operation",
+"source_basis": "CMIOT-C12 销账数据查询操作指南 4. 销账数据查询 - 注意事项"
+},
+{
+"id": "qa_070",
+"name": "预开预存发票实际开具",
+"question": "CMIOT 系统里会直接开出预开预存发票吗？",
+"expected_keywords": ["不会", "省侧开具", "仅录入额度"],
+"optional_keywords": [],
+"threshold": 0.75,
+"category": "faq",
+"source_basis": "CMIOT-C15 预开预存发票操作指南 5. 预开预存发票 - 注意事项"
+},
+{
+"id": "qa_071",
+"name": "预开额度数据展示期",
+"question": "预开预存发票的记录，系统展示多久的数据？",
+"expected_keywords": ["180 天内", "超期不展示"],
+"optional_keywords": [],
+"threshold": 0.75,
+"category": "restrictions",
+"source_basis": "CMIOT-C15 预开预存发票操作指南 5. 预开预存发票 - 注意事项"
+},
+{
+"id": "qa_072",
+"name": "预开发票冲红规则",
+"question": "预开预存发票要作废，怎么处理？",
+"expected_keywords": ["收回发票", "冲红", "全额冲红"],
+"optional_keywords": [],
+"threshold": 0.75,
+"category": "error_handling",
+"source_basis": "CMIOT-C15 预开预存发票操作指南 5. 预开预存发票 - 注意事项"
+},
+{
+"id": "qa_073",
+"name": "销户与预开额度关系",
+"question": "客户有未回款的预开额度，能办理销户吗？",
+"expected_keywords": ["不允许", "完成回款"],
+"optional_keywords": [],
+"threshold": 1.0,
+"category": "restrictions",
+"source_basis": "CMIOT-C15 预开预存发票操作指南 5. 预开预存发票 - 注意事项"
+},
+{
+"id": "qa_074",
+"name": "回款回退与缴费回退区别",
+"question": "预开额度的回款回退和缴费回退有什么不一样？",
+"expected_keywords": ["回款回退不解冻资金", "缴费回退退回资金"],
+"optional_keywords": ["发票余额变化"],
+"threshold": 0.67,
+"category": "faq",
+"source_basis": "CMIOT-C15 预开预存发票操作指南 5. 预开预存发票 - 注意事项"
+},
+{
+"id": "qa_075",
+"name": "挂账处理状态匹配",
+"question": "未审批的挂账申请，能直接做挂账处理吗？",
+"expected_keywords": ["不能", "已通过状态"],
+"optional_keywords": ["取消操作"],
+"threshold": 0.75,
+"category": "restrictions",
+"source_basis": "CMIOT-C04 挂账操作指南 3. 挂账 - 操作步骤"
+},
+{
+"id": "qa_076",
+"name": "解挂操作影响",
+"question": "给客户做挂账解挂，挂账金额会怎么处理？",
+"expected_keywords": ["累计回欠费", "恢复欠费金额"],
+"optional_keywords": [],
+"threshold": 0.75,
+"category": "account_billing",
+"source_basis": "CMIOT-C04 挂账操作指南 3. 挂账 - 操作步骤"
+},
+{
+"id": "qa_077",
+"name": "调账方向选择",
+"question": "多收客户费用要退回，调账方向选什么？",
+"expected_keywords": ["调增余额", "减少欠费"],
+"optional_keywords": [],
+"threshold": 0.75,
+"category": "operation_steps",
+"source_basis": "CMIOT-C02 调账操作指南 3.1 调账流程 - 调帐申请"
+},
+{
+"id": "qa_078",
+"name": "补收费用调账方向",
+"question": "要补收客户漏收的费用，调账方向选什么？",
+"expected_keywords": ["增加欠费"],
+"optional_keywords": ["账单调整"],
+"threshold": 1.0,
+"category": "operation_steps",
+"source_basis": "CMIOT-C02 调账操作指南 3.1 调账流程 - 调帐申请"
+},
+{
+"id": "qa_079",
+"name": "缴费回退状态还原",
+"question": "缴费回退后，客户账户状态会还原吗？",
+"expected_keywords": ["还原", "返销已销账", "重新关停"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "operation_steps",
+"source_basis": "CMIOT-C01 缴费操作指南 4. 缴费操作 - 注意事项"
+},
+{
+"id": "qa_080",
+"name": "月初未出账缴费回退",
+"question": "月初没出账前给客户缴费，能回退吗？",
+"expected_keywords": ["不支持", "转预存", "出账后销账"],
+"optional_keywords": [],
+"threshold": 0.75,
+"category": "restrictions",
+"source_basis": "CMIOT-C01 缴费操作指南 4. 缴费操作 - 注意事项"
+},
+{
+"id": "qa_081",
+"name": "挂账申请角色权限",
+"question": "发起挂账申请，需要什么系统角色？",
+"expected_keywords": ["地市调账申请管理员", "省级调账申请管理员"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "restrictions",
+"source_basis": "CMIOT-C04 挂账操作指南 2. 挂账 - 预置条件"
+},
+{
+"id": "qa_082",
+"name": "挂账审核角色权限",
+"question": "审核挂账申请，需要什么系统角色？",
+"expected_keywords": ["地市调账审批管理员", "省级调账审批管理员"],
+"optional_keywords": ["角色互斥"],
+"threshold": 0.67,
+"category": "restrictions",
+"source_basis": "CMIOT-C04 挂账操作指南 2. 挂账 - 预置条件"
+},
+{
+"id": "qa_083",
+"name": "批量调账文件字段",
+"question": "广东批量调账上传文件，哪些字段是必填的？",
+"expected_keywords": ["地市编码", "客户编码", "客户名称"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "required_materials",
+"source_basis": "CMIOT-C02 调账操作指南 3.3 调账流程 - 批量调账"
+},
+{
+"id": "qa_084",
+"name": "退款发票余额校验",
+"question": "退款时系统校验发票余额，不通过怎么办？",
+"expected_keywords": ["冲红发票", "作废发票"],
+"optional_keywords": [],
+"threshold": 0.75,
+"category": "error_handling",
+"source_basis": "CMIOT-C03 退款以及 OneLink 缴费冲正操作指南 4. 退款申请注意事项"
+},
+{
+"id": "qa_085",
+"name": "欠费红名单规则",
+"question": "红名单客户的欠费，会被停机催缴吗？",
+"expected_keywords": ["免停可催", "免停免催"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "restrictions",
+"source_basis": "CMIOT-C07 欠费数据查询操作指南 3. 欠费数据查询 - 操作步骤"
+},
+{
+"id": "qa_086",
+"name": "账单导出状态等待",
+"question": "导出客户账单显示待处理，要等多久？",
+"expected_keywords": ["处理成功", "下载文件"],
+"optional_keywords": ["异步导出"],
+"threshold": 0.67,
+"category": "operation_steps",
+"source_basis": "CMIOT-C08 电子对账单及用户账单查询操作指南 3. 电子对账单及用户账单查询 - 操作步骤"
+},
+{
+"id": "qa_087",
+"name": "滞纳金减免审批流程",
+"question": "我是区县客户经理，申请滞纳金减免找谁批？",
+"expected_keywords": ["地市审批员", "区县审批员"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "operation_steps",
+"source_basis": "CMIOT-C10 滞纳金减免以及导出操作指南 2. 滞纳金减免预置条件"
+},
+{
+"id": "qa_088",
+"name": "销账导出金库鉴权",
+"question": "导出销账数据，需要通过什么验证？",
+"expected_keywords": ["金库验证"],
+"optional_keywords": [],
+"threshold": 1.0,
+"category": "restrictions",
+"source_basis": "CMIOT-C12 销账数据查询操作指南 4. 销账数据查询 - 注意事项"
+},
+{
+"id": "qa_089",
+"name": "预开额度申请角色",
+"question": "申请预开预存发票额度，需要什么角色？",
+"expected_keywords": ["预开预存发票角色"],
+"optional_keywords": ["省级管理员赋权"],
+"threshold": 0.75,
+"category": "restrictions",
+"source_basis": "CMIOT-C15 预开预存发票操作指南 2. 预开预存发票 - 预置条件"
+},
+{
+"id": "qa_090",
+"name": "挂账批量操作规则",
+"question": "同一批挂账申请，能单独审核其中一项吗？",
+"expected_keywords": ["不能", "捆绑操作", "批次号"],
+"optional_keywords": [],
+"threshold": 0.75,
+"category": "batch_operation",
+"source_basis": "CMIOT-C04 挂账操作指南 3. 挂账 - 操作步骤"
+},
+{
+"id": "qa_091",
+"name": "缴费交易日志查询",
+"question": "查客户缴费是否成功，进哪个菜单查日志？",
+"expected_keywords": ["应收管理", "查询", "查询交易日志"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "menu_path",
+"source_basis": "CMIOT-C01 缴费操作指南 3.1 缴费"
+},
+{
+"id": "qa_092",
+"name": "调账审批下沉省份",
+"question": "哪些省份的调账审批是下沉到地市的？",
+"expected_keywords": ["山东", "山西", "福建", "天津"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "restrictions",
+"source_basis": "CMIOT-C02 调账操作指南 2. 调账 - 预置条件"
+},
+{
+"id": "qa_093",
+"name": "OneLink 冲正账户类型",
+"question": "OneLink 充值冲正，只支持什么类型账户？",
+"expected_keywords": ["集团统付账户"],
+"optional_keywords": [],
+"threshold": 1.0,
+"category": "restrictions",
+"source_basis": "CMIOT-C03 退款以及 OneLink 缴费冲正操作指南 8.OneLink 缴费冲正注意事项"
+},
+{
+"id": "qa_094",
+"name": "转账日志查询",
+"question": "客户预存款转账成功后，在哪查记录？",
+"expected_keywords": ["查询交易日志", "转账成功提示"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "menu_path",
+"source_basis": "CMIOT-C06 转账操作指南 3. 转账 - 操作步骤"
+},
+{
+"id": "qa_095",
+"name": "欠费催缴数据同步",
+"question": "欠费催缴数据什么时候同步给 OneLink？",
+"expected_keywords": ["每月 6 日 6 时前", "截止 5 日 24 时"],
+"optional_keywords": [],
+"threshold": 0.75,
+"category": "account_billing",
+"source_basis": "CMIOT-C07 欠费数据查询操作指南 1. 欠费数据查询 - 功能描述"
+},
+{
+"id": "qa_096",
+"name": "滞纳金减免附件要求",
+"question": "申请滞纳金减免，上传附件有什么要求？",
+"expected_keywords": ["可选", "支持图片文档", "格式合规"],
+"optional_keywords": [],
+"threshold": 0.67,
+"category": "required_materials",
+"source_basis": "CMIOT-C10 滞纳金减免以及导出操作指南 3. 滞纳金减免操作步骤"
+},
+{
+"id": "qa_097",
+"name": "预开专票试点省份",
+"question": "哪些省份可以开预开预存增值税专票？",
+"expected_keywords": ["山西", "广东", "北京", "福建"],
+"optional_keywords": ["云南", "河北", "湖南"],
+"threshold": 0.67,
+"category": "restrictions",
+"source_basis": "CMIOT-C15 预开预存发票操作指南 1. 预开预存发票 - 功能概述"
+},
+{
+"id": "qa_098",
+"name": "挂账账务周期默认值",
+"question": "挂账申请不填账务周期，默认是哪个账期？",
+"expected_keywords": ["上一账期", "上月"],
+"optional_keywords": [],
+"threshold": 1.0,
+"category": "operation_steps",
+"source_basis": "CMIOT-C04 挂账操作指南 5. 挂账 - 注意事项"
+},
+{
+"id": "qa_099",
+"name": "调账停机风险提示",
+"question": "给客户调增欠费，有什么风险提示？",
+"expected_keywords": ["到期未缴", "信控停机"],
+"optional_keywords": [],
+"threshold": 0.75,
+"category": "faq",
+"source_basis": "CMIOT-C02 调账操作指南 3.1 调账流程 - 调帐申请"
+},
+{
+"id": "qa_100",
+"name": "缴费回退发票余额",
+"question": "缴费回退时，发票余额不足会怎么样？",
+"expected_keywords": ["提示错误", "无法回退"],
+"optional_keywords": ["冲红发票"],
+"threshold": 0.75,
+"category": "error_handling",
+"source_basis": "CMIOT-C01 缴费操作指南 4. 缴费操作 - 注意事项"
+}
+]

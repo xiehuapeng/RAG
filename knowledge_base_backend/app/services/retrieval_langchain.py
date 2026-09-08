@@ -4,14 +4,25 @@ import json
 import logging
 import math
 import re
+import threading
+import time
 from collections import Counter
 from datetime import datetime
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.config import RETRIEVE_TOP_K
-from app.models import Chunk, RetrievalLog
+from app.config import (
+    RERANKER_CE_FLOOR,
+    RERANKER_ENABLED,
+    RERANKER_MAX_CANDIDATES,
+    RERANKER_SCORE_WEIGHT,
+    RETRIEVE_TOP_K,
+)
+from app.models import Chunk, Document, RetrievalLog
+from app.qa_logging import emit_qa_log
 from app.schemas import QueryUnderstandingResult
+from app.services.langchain_runtime import get_reranker
 from app.services.vector_store import query_chunks
 
 
@@ -41,6 +52,21 @@ EXPANSION_SOURCE_QUOTAS = {
     "search_query": 2,
     "search_term": 1,
 }
+# 查询规格限流：问题理解会产出大量同义规格，全部重放检索成本过高。
+# 这里按来源优先级去重后截断，兼顾改写问句、扩展问句和关键词命中。
+MAX_QUERY_SPECS = 8
+QUERY_SPEC_SOURCE_PRIORITY = [
+    "rewrite_query",
+    "raw_query",
+    "search_query",
+    "keyword",
+    "search_term",
+    "entity",
+]
+# 关键词召回预筛候选数：先用分词缓存做轻量打分粗排，再对前 N 个候选执行精确打分。
+KEYWORD_PREFILTER_LIMIT = 480
+# 分词记忆容量上限，防止长尾文本无限占用内存。
+TOKENIZE_MEMO_LIMIT = 8192
 
 
 def _to_json(data: object) -> str:
@@ -57,6 +83,24 @@ def _unique_keep_order(items: list[str]) -> list[str]:
         seen.add(value)
         ordered.append(value)
     return ordered
+
+
+def _build_retrieval_log_summary(items: list[dict]) -> dict[str, object]:
+    documents = _unique_keep_order([str(item.get("document_title") or "").strip() for item in items])
+    return {
+        "chunk_count": len(items),
+        "documents": documents,
+    }
+
+
+def _log_retrieval_selection(
+    items: list[dict],
+) -> None:
+    summary = _build_retrieval_log_summary(items)
+    emit_qa_log(
+        "检索知识库",
+        f"检索分片数={summary['chunk_count']} | 检索文档={_to_json(summary['documents'])}",
+    )
 
 
 def _load_chunk_metadata(chunk: Chunk) -> dict:
@@ -96,6 +140,104 @@ def tokenize(text: str) -> list[str]:
     return tokens
 
 
+# ---------------------------------------------------------------------------
+# 分词缓存与关键词召回索引
+#
+# 原实现对每一路查询都全量加载 ready chunks 并逐条重新分词打分，
+# 在 2 万+ chunk、多路查询规格下会成为检索链路的主要耗时。
+# 这里引入两层缓存：
+# 1. `_tokenize_memo`：按原文缓存分词结果，重复出现的查询和候选 chunk 不再重复分词；
+# 2. `_keyword_cache`：按当前 ready chunk 集合一次性构建 token id 集合，
+#    查询时只做集合求交粗排，精确打分只发生在少量预筛候选上。
+# 缓存版本用 (ready chunk 数量, 最大 chunk id) 标识，
+# 文档增删、重建、chunk 编辑/删除路径也会主动调用 invalidate_keyword_cache。
+# ---------------------------------------------------------------------------
+
+_keyword_cache_lock = threading.Lock()
+_keyword_cache: dict = {"version": None, "vocab": {}, "content_tokens": {}, "title_tokens": {}}
+_tokenize_memo: dict[str, list[str]] = {}
+
+
+def tokenize_cached(text: str) -> list[str]:
+    normalized = str(text or "").lower()
+    cached = _tokenize_memo.get(normalized)
+    if cached is None:
+        cached = tokenize(normalized)
+        if len(_tokenize_memo) >= TOKENIZE_MEMO_LIMIT:
+            _tokenize_memo.clear()
+        _tokenize_memo[normalized] = cached
+    return cached
+
+
+def invalidate_keyword_cache() -> None:
+    """文档/chunk 发生变更时调用，强制下一次检索重建关键词缓存。"""
+
+    global _keyword_cache
+    with _keyword_cache_lock:
+        _keyword_cache = {"version": None, "vocab": {}, "content_tokens": {}, "title_tokens": {}}
+
+
+def _ready_chunk_version(db: Session) -> tuple[int, int]:
+    row = (
+        db.query(func.count(Chunk.id), func.max(Chunk.id))
+        .join(Chunk.document)
+        .filter(Document.status == "ready")
+        .one()
+    )
+    return int(row[0] or 0), int(row[1] or 0)
+
+
+def _to_token_id_set(tokens: list[str], vocab: dict[str, int]) -> frozenset[int]:
+    ids: set[int] = set()
+    for token in set(tokens):
+        token_id = vocab.get(token)
+        if token_id is None:
+            token_id = len(vocab)
+            vocab[token] = token_id
+        ids.add(token_id)
+    return frozenset(ids)
+
+
+def _build_keyword_cache(db: Session, version: tuple[int, int]) -> dict:
+    started = time.time()
+    rows = (
+        db.query(Chunk.id, Chunk.content, Document.title)
+        .join(Chunk.document)
+        .filter(Document.status == "ready")
+        .all()
+    )
+    vocab: dict[str, int] = {}
+    content_tokens: dict[int, frozenset[int]] = {}
+    title_tokens: dict[int, frozenset[int]] = {}
+    for chunk_id, content, title in rows:
+        content_tokens[chunk_id] = _to_token_id_set(tokenize_cached(content or ""), vocab)
+        title_tokens[chunk_id] = _to_token_id_set(tokenize_cached(title or ""), vocab)
+    logger.info(
+        "[retrieval.keyword_cache] rebuilt chunks=%s vocab=%s elapsed=%.2fs",
+        len(rows),
+        len(vocab),
+        time.time() - started,
+    )
+    return {
+        "version": version,
+        "vocab": vocab,
+        "content_tokens": content_tokens,
+        "title_tokens": title_tokens,
+    }
+
+
+def _get_keyword_cache(db: Session) -> dict:
+    global _keyword_cache
+    version = _ready_chunk_version(db)
+    cache = _keyword_cache
+    if cache["version"] == version and cache["content_tokens"]:
+        return cache
+    with _keyword_cache_lock:
+        if _keyword_cache["version"] != version or not _keyword_cache["content_tokens"]:
+            _keyword_cache = _build_keyword_cache(db, version)
+        return _keyword_cache
+
+
 def _cosine_similarity(query_tokens: list[str], text_tokens: list[str]) -> float:
     if not query_tokens or not text_tokens:
         return 0.0
@@ -112,8 +254,8 @@ def _cosine_similarity(query_tokens: list[str], text_tokens: list[str]) -> float
 def _keyword_score(query: str, query_tokens: list[str], chunk: Chunk) -> tuple[float, dict[str, float | int]]:
     title = (chunk.document.title or "").lower()
     content = (chunk.content or "").lower()
-    title_tokens = tokenize(title)
-    content_tokens = tokenize(content)
+    title_tokens = tokenize_cached(title)
+    content_tokens = tokenize_cached(content)
 
     overlap_count = sum(1 for token in set(query_tokens) if token in content_tokens)
     title_overlap_count = sum(1 for token in set(query_tokens) if token in title_tokens)
@@ -187,9 +329,9 @@ def _understanding_term_features(
 
     title = (chunk.document.title or "").lower()
     content = (content_override or chunk.content or "").lower()
-    title_tokens = tokenize(title)
-    content_tokens = tokenize(content)
-    term_tokens = tokenize(normalized_term)
+    title_tokens = tokenize_cached(title)
+    content_tokens = tokenize_cached(content)
+    term_tokens = tokenize_cached(normalized_term)
     if not term_tokens:
         term_tokens = [normalized_term]
 
@@ -206,10 +348,32 @@ def _understanding_term_features(
 
 
 def _keyword_recall(db: Session, query: str, query_tokens: list[str], top_k: int) -> list[dict]:
+    cache = _get_keyword_cache(db)
+    vocab = cache["vocab"]
+    content_tokens = cache["content_tokens"]
+    title_tokens = cache["title_tokens"]
+
+    query_token_ids = {vocab[token] for token in set(query_tokens) if token in vocab}
+    if not query_token_ids:
+        return []
+
+    # 第一遍：基于分词缓存做集合求交粗排，避免对全量 chunk 重新分词打分。
+    rough: list[tuple[int, int, int]] = []
+    for chunk_id, chunk_token_ids in content_tokens.items():
+        overlap_count = len(query_token_ids & chunk_token_ids)
+        title_overlap_count = len(query_token_ids & title_tokens.get(chunk_id, frozenset()))
+        if overlap_count or title_overlap_count:
+            rough.append((overlap_count, title_overlap_count, chunk_id))
+    if not rough:
+        return []
+    rough.sort(reverse=True)
+    candidate_ids = [chunk_id for _, _, chunk_id in rough[:KEYWORD_PREFILTER_LIMIT]]
+
+    # 第二遍：只对预筛候选执行原有精确打分，保持打分语义不变。
     rows = (
         db.query(Chunk)
         .join(Chunk.document)
-        .filter(Chunk.document.has(status="ready"))
+        .filter(Chunk.id.in_(candidate_ids), Chunk.document.has(status="ready"))
         .all()
     )
 
@@ -259,14 +423,20 @@ def _vector_recall(db: Session, query: str, top_k: int) -> list[dict]:
         chunk_id = metadata.get("chunk_id")
         if chunk_id is None:
             continue
+        try:
+            chunk_id = int(chunk_id)
+        except (TypeError, ValueError):
+            continue
 
         chunk = (
             db.query(Chunk)
             .join(Chunk.document)
-            .filter(Chunk.id == int(chunk_id), Chunk.document.has(status="ready"))
+            .filter(Chunk.id == chunk_id, Chunk.document.has(status="ready"))
             .first()
         )
-        if chunk is None:
+        vector_id = metadata.get("chroma_id") or getattr(langchain_doc, "id", None)
+        # SQLite may reuse IDs after rollback/deletion. Never trust an orphan vector's chunk_id alone.
+        if chunk is None or vector_id != chunk.chroma_id:
             continue
 
         candidates.append(
@@ -277,7 +447,7 @@ def _vector_recall(db: Session, query: str, top_k: int) -> list[dict]:
                 "distance": round(float(distance), 4) if distance is not None else None,
                 "channels": {"vector"},
                 "features": {},
-                "content": langchain_doc.page_content or chunk.content,
+                "content": chunk.content,
             }
         )
     return candidates
@@ -352,6 +522,10 @@ def _rerank_candidates(candidates: list[dict], understanding_terms: list[str] | 
                 "chapter_path": metadata.get("chapter_path"),
                 "content": content,
                 "score": round(min(final_score, 1.0), 4),
+                # 排序专用未截断分：若直接用截断后的 score 排序，大量域内候选会同时
+                # 顶到 1.0 上限形成超长并列组，重排加成带来的细微优势会被完全抹平，
+                # 导致“最全面的目标块”在并列组中随机沉底、被覆盖词补位块挤出。
+                "rank_score": final_score,
                 "keyword_score": round(keyword_score, 4),
                 "vector_score": round(vector_score, 4),
                 "distance": candidate["distance"],
@@ -370,13 +544,78 @@ def _rerank_candidates(candidates: list[dict], understanding_terms: list[str] | 
 
     reranked.sort(
         key=lambda item: (
-            item["score"],
+            item.get("rank_score") or item["score"],
             len(item["channels"]),
             item["title_hit"],
             item["vector_score"],
             item["keyword_score"],
         ),
         reverse=True,
+    )
+    return reranked
+
+
+def _cross_encoder_rerank(candidates: list[dict], query: str) -> list[dict]:
+    """交叉编码器精排：对启发式粗排后的候选做 (query, chunk) 联合相关性打分。
+
+    只对前 RERANKER_MAX_CANDIDATES 个候选执行（CPU 推理成本可控）。
+    打分模式为“只升不降”的有界加成：仅当 reranker_score 超过 RERANKER_CE_FLOOR
+    时按比例加成，绝不因模型低分而扣减启发式得分——
+    实测 bge-reranker-base 对同文档内共享关键词的块打分趋同、对长合并块易低估，
+    替换式融合会把原本高分的长块压到相关性门槛之下，反而破坏召回覆盖。
+    任一环节失败时降级返回原始顺序，保证检索链路不因重排模型异常而中断。
+    """
+
+    if not RERANKER_ENABLED or not candidates:
+        return candidates
+    normalized_query = str(query or "").strip()
+    if not normalized_query:
+        return candidates
+
+    scored_candidates = candidates[:RERANKER_MAX_CANDIDATES]
+    untouched_candidates = candidates[RERANKER_MAX_CANDIDATES:]
+    started = time.time()
+    try:
+        reranker = get_reranker()
+        texts = [_candidate_text(candidate) for candidate in scored_candidates]
+        raw_scores = reranker.predict(
+            [(normalized_query, text) for text in texts],
+            batch_size=16,
+            show_progress_bar=False,
+        )
+    except Exception:
+        logger.warning("[retrieval.reranker] failed; keep heuristic order", exc_info=True)
+        return candidates
+
+    for candidate, raw_score in zip(scored_candidates, raw_scores):
+        reranker_score = max(0.0, min(float(raw_score), 1.0))
+        heuristic_rank = float(candidate.get("rank_score") or candidate.get("score") or 0.0)
+        bonus = RERANKER_SCORE_WEIGHT * max(0.0, reranker_score - RERANKER_CE_FLOOR)
+        candidate["heuristic_score"] = round(min(heuristic_rank, 1.0), 4)
+        candidate["reranker_score"] = round(reranker_score, 4)
+        candidate["reranker_bonus"] = round(bonus, 4)
+        # 展示分保持 [0,1]，排序分允许超过 1 以保留加成带来的区分度。
+        candidate["score"] = round(min(heuristic_rank + bonus, 1.0), 4)
+        candidate["rank_score"] = heuristic_rank + bonus
+
+    reranked = scored_candidates + untouched_candidates
+    # 与 _rerank_candidates 的复合排序键保持一致，仅插入 reranker 相关字段作为次级键。
+    reranked.sort(
+        key=lambda item: (
+            item.get("rank_score") or item.get("score") or 0.0,
+            item.get("reranker_bonus") or 0.0,
+            len(item["channels"]),
+            item["title_hit"],
+            item["vector_score"],
+            item["keyword_score"],
+        ),
+        reverse=True,
+    )
+    logger.info(
+        "[retrieval.reranker] scored=%s elapsed=%.2fs top_reranker_score=%s",
+        len(scored_candidates),
+        time.time() - started,
+        reranked[0].get("reranker_score") if reranked else None,
     )
     return reranked
 
@@ -494,9 +733,9 @@ def _candidate_source_score(candidate: dict, source: str) -> tuple:
     content = str(candidate.get("content") or "")
     source_query_hit = 1 if source_queries and any(part and part in content for part in source_queries.split()) else 0
     return (
+        float(candidate.get("rank_score") or candidate.get("score") or 0.0),
         source_query_hit,
         -_source_rank(candidate, source),
-        float(candidate.get("score") or 0.0),
         float(candidate.get("keyword_score") or 0.0),
         float(candidate.get("vector_score") or 0.0),
     )
@@ -532,6 +771,8 @@ def _select_bucketed_top_results(
     top_k: int,
     coverage_terms: list[str] | None = None,
 ) -> list[dict]:
+    if top_k <= 0:
+        return []
     eligible_candidates = [candidate for candidate in reranked_candidates if _passes_relevance_gate(candidate)]
     selected: list[dict] = []
     selected_ids: set[int] = set()
@@ -587,18 +828,28 @@ def _query_specs_from_understanding(understanding: QueryUnderstandingResult) -> 
     specs.extend(("search_query", query) for query in getattr(understanding, "search_queries", []))
     specs.extend(("search_term", term) for term in getattr(understanding, "search_terms", []))
 
-    seen: set[tuple[str, str]] = set()
-    deduped: list[tuple[str, str]] = []
+    # 跨来源按归一化值去重：同一个词以 keyword/entity/search_term 等多身份出现时，
+    # 只保留来源优先级最高的一条，避免同义规格重复重放检索。
+    priority = {source: index for index, source in enumerate(QUERY_SPEC_SOURCE_PRIORITY)}
+    best_by_value: dict[str, tuple[str, str]] = {}
+    insertion_order: list[str] = []
     for source, query in specs:
         value = str(query or "").strip()
         if not value:
             continue
-        key = (source, value)
-        if key in seen:
-            continue
-        seen.add(key)
-        deduped.append((source, value))
-    return deduped
+        normalized = re.sub(r"\s+", "", value.lower())
+        existing = best_by_value.get(normalized)
+        if existing is None:
+            best_by_value[normalized] = (source, value)
+            insertion_order.append(normalized)
+        elif priority.get(source, len(QUERY_SPEC_SOURCE_PRIORITY)) < priority.get(
+            existing[0], len(QUERY_SPEC_SOURCE_PRIORITY)
+        ):
+            best_by_value[normalized] = (source, value)
+
+    deduped = [best_by_value[normalized] for normalized in insertion_order]
+    deduped.sort(key=lambda item: priority.get(item[0], len(QUERY_SPEC_SOURCE_PRIORITY)))
+    return deduped[:MAX_QUERY_SPECS]
 
 
 def _tag_candidate_source(candidate: dict, *, source: str, query: str, rank: int) -> dict:
@@ -647,17 +898,11 @@ def _merge_sourced_candidate(merged_candidates: dict[int, dict], candidate: dict
 
 def retrieve(db: Session, session_id: int | None, query: str, top_k: int = RETRIEVE_TOP_K) -> list[dict]:
     query_tokens = tokenize(query)
-    logger.info(
-        "[qa.retrieve.request] session_id=%s top_k=%s query=%s query_tokens=%s",
-        session_id,
-        top_k,
-        query,
-        _to_json(query_tokens),
-    )
     keyword_candidates = _keyword_recall(db, query, query_tokens, top_k)
     vector_candidates = _vector_recall(db, query, top_k)
     merged_candidates = _merge_candidates(keyword_candidates, vector_candidates)
     reranked_candidates = _rerank_candidates(merged_candidates)
+    reranked_candidates = _cross_encoder_rerank(reranked_candidates, query)
     retrieved_snapshot = [
         {
             "chunk_id": candidate["chunk"].id,
@@ -674,16 +919,7 @@ def retrieve(db: Session, session_id: int | None, query: str, top_k: int = RETRI
 
     filtered_candidates = [candidate for candidate in reranked_candidates if _passes_relevance_gate(candidate)]
     top_results = _select_top_results(reranked_candidates, top_k)
-    logger.info(
-        "[qa.retrieve.response] session_id=%s query=%s keyword_candidates=%s vector_candidates=%s merged_candidates=%s filtered_candidates=%s top_results=%s",
-        session_id,
-        query,
-        len(keyword_candidates),
-        len(vector_candidates),
-        len(merged_candidates),
-        len(filtered_candidates),
-        _to_json(top_results),
-    )
+    _log_retrieval_selection(top_results)
 
     db.add(
         RetrievalLog(
@@ -746,8 +982,12 @@ def retrieve_with_understanding(
         ]
     )
     reranked_candidates = _rerank_candidates(list(merged_candidates.values()), understanding_terms=understanding_terms)
+    reranked_candidates = _cross_encoder_rerank(
+        reranked_candidates, understanding.rewrite_query.strip() or understanding.raw_query
+    )
     filtered_candidates = [candidate for candidate in reranked_candidates if _passes_relevance_gate(candidate)]
     top_results = _select_bucketed_top_results(reranked_candidates, top_k, coverage_terms=understanding_terms)
+    _log_retrieval_selection(top_results)
 
     db.add(
         RetrievalLog(

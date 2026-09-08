@@ -1,0 +1,110 @@
+[
+  {
+    "id": "qa_001",
+    "name": "集团批量开户入口路径",
+    "question": "我要给集团批量开户，入口在哪里，整体怎么开始操作？",
+    "expected_keywords": [
+      "物联网集中化系统",
+      "综合营业",
+      "批量开户"
+    ],
+    "optional_keywords": [
+      "点击进入",
+      "集团客户",
+      "选择"
+    ],
+    "threshold": 0.67,
+    "category": "menu_path",
+    "source_basis": "CMIOT-B03 集团成员批量开户操作指南中 3.1 路径说明：登录物联网集中化系统（OC），路径为综合营业 -> 批量开户。"
+  },
+  {
+    "id": "qa_002",
+    "name": "主商品选错后是否可改",
+    "question": "物联网卡开卡，主商品选错了能改吗？",
+    "expected_keywords": [
+      "主商品",
+      "订单成功后",
+      "无法重新修改主产品"
+    ],
+    "optional_keywords": [
+      "慎重选择",
+      "批量开户",
+      "主产品"
+    ],
+    "threshold": 0.67,
+    "category": "business_rule",
+    "source_basis": "CMIOT-B03 集团成员批量开户操作指南中 3.4 主商品设置说明：主商品批量开户订单成功后，无法重新修改主产品，请慎重选择。"
+  },
+  {
+    "id": "qa_003",
+    "name": "政府部门缴费周期特殊规则",
+    "question": "政府类集团客户注册有什么特殊政策或特殊规定？",
+    "expected_keywords": [
+      "企业类型",
+      "政府部门",
+      "12个月"
+    ],
+    "optional_keywords": [
+      "后付费",
+      "缴费周期",
+      "6个月"
+    ],
+    "threshold": 0.67,
+    "category": "policy_rule",
+    "source_basis": "缴费周期管理注意事项中说明：集团客户注册时企业类型为政府部门时，该客户下账户信息中后付费的缴费周期可由最大支持 6 个月调整为最大支持 12 个月。"
+  },
+  {
+    "id": "qa_004",
+    "name": "批量开户折扣设置",
+    "question": "批量开户时怎么设置折扣？",
+    "expected_keywords": [
+      "生效折扣",
+      "是否打折",
+      "折扣"
+    ],
+    "optional_keywords": [
+      "项目",
+      "增值商品",
+      "折扣价格"
+    ],
+    "threshold": 0.67,
+    "category": "discount_setting",
+    "source_basis": "项目管理/批量开户设置折扣相关章节说明：批量开户时选择具有生效折扣的项目，订购增值商品时选择项目下生效的折扣商品，是否打折设置为“是”。"
+  },
+  {
+    "id": "qa_005",
+    "name": "批量开户账户模式选择",
+    "question": "集团成员批量开户时账户模式怎么选？",
+    "expected_keywords": [
+      "账户模式",
+      "集团统付",
+      "单卡个付"
+    ],
+    "optional_keywords": [
+      "B2B",
+      "B2B2C",
+      "账户信息"
+    ],
+    "threshold": 0.67,
+    "category": "account_mode",
+    "source_basis": "CMIOT-B03 集团成员批量开户操作指南账户信息章节中包含 B2B/B2B2C 场景，并提到账户模式包括集团统付、单卡个付等。"
+  },
+  {
+    "id": "qa_006",
+    "name": "批量开户提交订单结果",
+    "question": "集团批量开户点提交后，怎么确认订单是否成功？",
+    "expected_keywords": [
+      "受理成功",
+      "订单号",
+      "查询订单"
+    ],
+    "optional_keywords": [
+      "履行状态",
+      "提交业务请求",
+      "结算"
+    ],
+    "threshold": 0.67,
+    "category": "order_submit",
+    "source_basis": "CMIOT-B03 集团成员批量开户操作指南 3.18 提交按钮章节说明：提交业务请求后页面跳转到受理成功页面，可查看订单号，点击查询订单可看到订单履行状态。"
+  }
+]

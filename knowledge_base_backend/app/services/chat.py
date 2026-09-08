@@ -14,8 +14,9 @@ from sqlalchemy.orm import Session
 
 from app.config import QA_RETRIEVE_TOP_K
 from app.models import ChatSession, Feedback, Message, QueryUnderstandingLog, RetrievalLog
+from app.qa_logging import QuestionLogSession, emit_qa_log
 from app.schemas import QueryUnderstandingResult
-from app.services.minimax import MinimaxConfigError
+from app.services.llm_client import LLMConfigError
 from app.services.qa_langchain import (
     SemanticAnalysis,
     build_evidence_context,
@@ -47,6 +48,17 @@ OUT_OF_SCOPE_TEXT = (
 THINK_OPEN = "<think>"
 THINK_CLOSE = "</think>"
 
+PROGRESS_STEPS = [
+    ("start", "开始", "开始处理问题"),
+    ("understanding", "理解问题", "正在理解问题"),
+    ("retrieving", "检索知识库", "正在检索知识库"),
+    ("filtering", "分片过滤", "正在分片过滤"),
+    ("generating", "整理答案", "正在整理答案"),
+    ("completed", "完成", "处理完成"),
+]
+PROGRESS_STEP_MESSAGES = {key: message for key, _, message in PROGRESS_STEPS}
+PROGRESS_CHAIN_KEYS = {"retrieving", "filtering", "generating"}
+
 
 def _serialize_model(model: QueryUnderstandingResult | None) -> dict[str, Any]:
     if model is None:
@@ -54,6 +66,39 @@ def _serialize_model(model: QueryUnderstandingResult | None) -> dict[str, Any]:
     if hasattr(model, "model_dump"):
         return model.model_dump()
     return model.dict()
+
+
+def _log_understanding_summary(source_question: str, understanding: QueryUnderstandingResult) -> None:
+    rewritten_question = understanding.rewrite_query or understanding.raw_query or source_question
+    emit_qa_log(
+        "理解问题",
+        f"源问题={source_question} | 改写后问题={rewritten_question}",
+    )
+
+
+def _run_query_understanding(
+    db: Session,
+    *,
+    session: ChatSession,
+    content: str,
+    recent_messages: list[dict[str, Any]],
+    session_summary: dict[str, Any],
+) -> tuple[QueryUnderstandingResult, SemanticAnalysis]:
+    understanding_service = get_query_understanding_service()
+    understanding = understanding_service.understand(
+        query=content,
+        history=recent_messages,
+        session_summary=session_summary,
+    )
+    _log_understanding_summary(content, understanding)
+    _record_query_understanding_log(
+        db,
+        session_id=session.id,
+        user_id=session.user_id,
+        understanding=understanding,
+    )
+    analysis = _analysis_from_understanding(understanding)
+    return understanding, analysis
 
 
 def _friendly_stream_error(exc: Exception) -> tuple[str, str]:
@@ -67,7 +112,7 @@ def _friendly_stream_error(exc: Exception) -> tuple[str, str]:
         or "authenticationerror" in message
     ):
         return "config_error", "模型服务鉴权失败，请检查 API Key、Base URL 或模型配置。"
-    if isinstance(exc, MinimaxConfigError):
+    if isinstance(exc, LLMConfigError):
         return "config_error", "模型配置缺失，请检查 API Key 和模型配置。"
     if "session not found" in message:
         return "session_not_found", "当前会话不存在，请刷新后重试。"
@@ -231,7 +276,37 @@ def _strip_hidden_reasoning(text: str) -> str:
 
 
 def _is_model_runtime_error(exc: Exception) -> bool:
-    return isinstance(exc, (MinimaxConfigError, OpenAIError, httpx.HTTPError, TimeoutError))
+    return isinstance(exc, (LLMConfigError, OpenAIError, httpx.HTTPError, TimeoutError))
+
+
+def _build_progress_payload(
+    current_step: str,
+    *,
+    message: str | None = None,
+    skipped_steps: set[str] | None = None,
+) -> dict[str, Any]:
+    skipped = skipped_steps or set()
+    current_index = next((index for index, (key, _, _) in enumerate(PROGRESS_STEPS) if key == current_step), 0)
+    steps: list[dict[str, str]] = []
+
+    for index, (key, label, _) in enumerate(PROGRESS_STEPS):
+        if key in skipped:
+            status = "skipped"
+        elif current_step == "completed":
+            status = "done" if index <= current_index else "waiting"
+        elif key == current_step:
+            status = "active"
+        elif index < current_index:
+            status = "done"
+        else:
+            status = "waiting"
+        steps.append({"key": key, "label": label, "status": status})
+
+    return {
+        "current_step": current_step,
+        "message": message or PROGRESS_STEP_MESSAGES.get(current_step, "正在处理中"),
+        "steps": steps,
+    }
 
 
 def _build_local_fallback_result(
@@ -287,20 +362,13 @@ def _prepare_turn_context(db: Session, session: ChatSession, content: str) -> di
     session_summary = parse_session_summary(session.summary_json)
     memory_context = _build_memory_context(session_summary, recent_messages)
 
-    understanding_service = get_query_understanding_service()
-    understanding = understanding_service.understand(
-        query=content,
-        history=recent_messages,
+    understanding, analysis = _run_query_understanding(
+        db,
+        session=session,
+        content=content,
+        recent_messages=recent_messages,
         session_summary=session_summary,
     )
-    _record_query_understanding_log(
-        db,
-        session_id=session.id,
-        user_id=session.user_id,
-        understanding=understanding,
-    )
-
-    analysis = _analysis_from_understanding(understanding)
     retrieval_results: list[dict] = []
     evidence_context = ""
     evidence_items: list[dict[str, Any]] = []
@@ -323,7 +391,7 @@ def _prepare_turn_context(db: Session, session: ChatSession, content: str) -> di
     }
 
 
-def _answer_with_minimax(
+def _answer_with_llm(
     *,
     db: Session,
     session: ChatSession,
@@ -408,21 +476,22 @@ def send_message(db: Session, session: ChatSession, content: str) -> tuple[Messa
     db.commit()
     db.refresh(user_message)
 
-    try:
-        result = _answer_with_minimax(db=db, session=session, content=content)
-    except Exception as exc:
-        if not _is_model_runtime_error(exc):
-            raise
-        traceback.print_exc()
-        understanding = _default_query_understanding(content)
-        analysis = _analysis_from_understanding(understanding)
-        retrieval_results = retrieve(db, session.id, content, top_k=QA_RETRIEVE_TOP_K)
-        result = _build_local_fallback_result(
-            content=content,
-            retrieval_results=retrieval_results,
-            analysis=analysis,
-            understanding=understanding,
-        )
+    with QuestionLogSession(content):
+        try:
+            result = _answer_with_llm(db=db, session=session, content=content)
+        except Exception as exc:
+            if not _is_model_runtime_error(exc):
+                raise
+            traceback.print_exc()
+            understanding = _default_query_understanding(content)
+            analysis = _analysis_from_understanding(understanding)
+            retrieval_results = retrieve(db, session.id, content, top_k=QA_RETRIEVE_TOP_K)
+            result = _build_local_fallback_result(
+                content=content,
+                retrieval_results=retrieval_results,
+                analysis=analysis,
+                understanding=understanding,
+            )
 
     assistant_message = Message(
         session_id=session.id,
@@ -453,189 +522,205 @@ def stream_message(db: Session, session: ChatSession, content: str) -> Streaming
 
     def event_stream():
         yield _sse("start", {"message_id": user_message_id, "session_id": session_id})
-        try:
-            session_row = db.query(ChatSession).filter(ChatSession.id == session_id).first()
-            if session_row is None:
-                yield _sse("error", {"code": "session_not_found", "message": "当前会话不存在，请刷新后重试。"})
-                return
+        with QuestionLogSession(content):
+            try:
+                session_row = db.query(ChatSession).filter(ChatSession.id == session_id).first()
+                if session_row is None:
+                    yield _sse("error", {"code": "session_not_found", "message": "当前会话不存在，请刷新后重试。"})
+                    return
 
-            context = _prepare_turn_context(db, session_row, content)
-            understanding: QueryUnderstandingResult = context["understanding"]
-            analysis: SemanticAnalysis = context["analysis"]
-            retrieval_results = context["retrieval_results"]
-            evidence_context = context["evidence_context"]
-            evidence_items = context["evidence_items"]
-            recent_messages = context["recent_messages"]
-            memory_context = context["memory_context"]
+                yield _sse("progress", _build_progress_payload("start"))
 
-            yield _sse(
-                "understanding",
-                {
-                    "route": understanding.route,
-                    "confidence": understanding.confidence,
-                    "is_follow_up": understanding.is_follow_up,
-                    "need_context": understanding.need_context,
-                    "raw_query": understanding.raw_query,
-                    "rewrite_query": understanding.rewrite_query,
-                    "keywords_hit": understanding.keywords_hit,
-                    "entities": understanding.entities,
-                },
-            )
+                recent_messages = _load_prompt_messages(db, session_row.id, content)
+                session_summary = parse_session_summary(session_row.summary_json)
+                memory_context = _build_memory_context(session_summary, recent_messages)
 
-            if understanding.route != "kb_qa":
-                result = _build_out_of_scope_result(content, understanding)
-                session_row.summary_json = json.dumps(result["session_summary"], ensure_ascii=False)
+                yield _sse("progress", _build_progress_payload("understanding"))
+                understanding, analysis = _run_query_understanding(
+                    db,
+                    session=session_row,
+                    content=content,
+                    recent_messages=recent_messages,
+                    session_summary=session_summary,
+                )
+
+                yield _sse(
+                    "understanding",
+                    {
+                        "route": understanding.route,
+                        "confidence": understanding.confidence,
+                        "is_follow_up": understanding.is_follow_up,
+                        "need_context": understanding.need_context,
+                        "raw_query": understanding.raw_query,
+                        "rewrite_query": understanding.rewrite_query,
+                        "keywords_hit": understanding.keywords_hit,
+                        "entities": understanding.entities,
+                    },
+                )
+
+                if understanding.route != "kb_qa":
+                    result = _build_out_of_scope_result(content, understanding)
+                    session_row.summary_json = json.dumps(result["session_summary"], ensure_ascii=False)
+                    assistant_message = Message(
+                        session_id=session_id,
+                        role="assistant",
+                        content=result["answer"],
+                        references_json=json.dumps(result["references"], ensure_ascii=False),
+                    )
+                    db.add(assistant_message)
+                    if not session_row.title or session_row.title == "新建会话":
+                        session_row.title = content[:20]
+                    db.add(session_row)
+                    db.commit()
+                    yield _sse("progress", _build_progress_payload("completed", skipped_steps=PROGRESS_CHAIN_KEYS))
+                    yield _sse("delta", {"content": result["answer"]})
+                    yield _sse(
+                        "end",
+                        {
+                            "answer": result["answer"],
+                            "summary": result["summary"],
+                            "suggestions": result["suggestions"],
+                        },
+                    )
+                    return
+
+                yield _sse("progress", _build_progress_payload("retrieving"))
+                yield _sse("status", {"phase": "retrieving", "message": "正在检索知识库"})
+                retrieval_results = retrieve_with_understanding(db, session_row.id, understanding, top_k=QA_RETRIEVE_TOP_K)
+                yield _sse("progress", _build_progress_payload("filtering"))
+                evidence_context, evidence_items = build_evidence_context(retrieval_results)
+                yield _sse(
+                    "evidence",
+                    {
+                        "query": understanding.rewrite_query or understanding.raw_query,
+                        "analysis": {
+                            "route": analysis.route,
+                            "intent": analysis.intent,
+                            "is_follow_up": analysis.is_follow_up,
+                            "keywords_hit": analysis.keywords_hit,
+                            "entities": analysis.entities,
+                            "reason": analysis.reason,
+                            "confidence": analysis.confidence,
+                        },
+                        "evidence": evidence_items,
+                    },
+                )
+
+                collected: list[str] = []
+                yield _sse("progress", _build_progress_payload("generating"))
+                yield _sse("status", {"phase": "generating", "message": "正在整理答案"})
+                try:
+                    for text in stream_answer_chain(
+                        question=content,
+                        analysis=analysis,
+                        memory_summary=memory_context,
+                        recent_messages=recent_messages,
+                        evidence_context=evidence_context,
+                    ):
+                        if not text:
+                            continue
+                        collected.append(text)
+                        yield _sse("delta", {"content": text})
+                except Exception as exc:
+                    logger.exception("stream answer failed")
+                    if _is_model_runtime_error(exc) and not collected:
+                        fallback_result = _build_local_fallback_result(
+                            content=content,
+                            retrieval_results=retrieval_results,
+                            analysis=analysis,
+                            understanding=understanding,
+                        )
+                        session_row.summary_json = json.dumps(fallback_result["session_summary"], ensure_ascii=False)
+                        assistant_message = Message(
+                            session_id=session_id,
+                            role="assistant",
+                            content=fallback_result["answer"],
+                            references_json=json.dumps(fallback_result["references"], ensure_ascii=False),
+                        )
+                        db.add(assistant_message)
+                        if not session_row.title or session_row.title == "新建会话":
+                            session_row.title = content[:20]
+                        db.add(session_row)
+                        db.commit()
+                        yield _sse("progress", _build_progress_payload("completed"))
+                        yield _sse("delta", {"content": fallback_result["answer"]})
+                        yield _sse(
+                            "end",
+                            {
+                                "answer": fallback_result["answer"],
+                                "summary": fallback_result["summary"],
+                                "suggestions": fallback_result["suggestions"],
+                            },
+                        )
+                        return
+                    if not collected and _should_fallback_no_answer(retrieval_results):
+                        fallback_result = _build_local_fallback_result(
+                            content=content,
+                            retrieval_results=retrieval_results,
+                            analysis=analysis,
+                            understanding=understanding,
+                        )
+                        session_row.summary_json = json.dumps(fallback_result["session_summary"], ensure_ascii=False)
+                        assistant_message = Message(
+                            session_id=session_id,
+                            role="assistant",
+                            content=fallback_result["answer"],
+                            references_json=json.dumps(fallback_result["references"], ensure_ascii=False),
+                        )
+                        db.add(assistant_message)
+                        if not session_row.title or session_row.title == "新建会话":
+                            session_row.title = content[:20]
+                        db.add(session_row)
+                        db.commit()
+                        yield _sse("progress", _build_progress_payload("completed"))
+                        yield _sse("delta", {"content": fallback_result["answer"]})
+                        yield _sse(
+                            "end",
+                            {
+                                "answer": fallback_result["answer"],
+                                "summary": fallback_result["summary"],
+                                "suggestions": fallback_result["suggestions"],
+                            },
+                        )
+                        return
+                    raise
+
+                answer_text = _strip_hidden_reasoning("".join(collected).strip())
+                if not answer_text and _should_fallback_no_answer(retrieval_results):
+                    answer_text, references, suggestions = build_answer(content, retrieval_results)
+                    references_payload = references
+                else:
+                    references_payload = evidence_items
+                    suggestions = extract_followup_questions(answer_text)
+
+                summary_text = extract_answer_summary(answer_text)
+                query_understanding = _serialize_model(understanding)
+                session_summary = build_session_summary(
+                    question=content,
+                    analysis=analysis,
+                    answer_text=answer_text,
+                    retrieval_results=retrieval_results,
+                    query_understanding=query_understanding,
+                )
+                session_row.summary_json = json.dumps(session_summary, ensure_ascii=False)
+
                 assistant_message = Message(
                     session_id=session_id,
                     role="assistant",
-                    content=result["answer"],
-                    references_json=json.dumps(result["references"], ensure_ascii=False),
+                    content=answer_text,
+                    references_json=json.dumps(references_payload, ensure_ascii=False),
                 )
                 db.add(assistant_message)
                 if not session_row.title or session_row.title == "新建会话":
                     session_row.title = content[:20]
                 db.add(session_row)
                 db.commit()
-                yield _sse("delta", {"content": result["answer"]})
-                yield _sse(
-                    "end",
-                    {
-                        "answer": result["answer"],
-                        "summary": result["summary"],
-                        "suggestions": result["suggestions"],
-                    },
-                )
-                return
-
-            yield _sse("status", {"phase": "retrieving", "message": "正在检索知识库"})
-            yield _sse(
-                "evidence",
-                {
-                    "query": understanding.rewrite_query or understanding.raw_query,
-                    "analysis": {
-                        "route": analysis.route,
-                        "intent": analysis.intent,
-                        "is_follow_up": analysis.is_follow_up,
-                        "keywords_hit": analysis.keywords_hit,
-                        "entities": analysis.entities,
-                        "reason": analysis.reason,
-                        "confidence": analysis.confidence,
-                    },
-                    "evidence": evidence_items,
-                },
-            )
-
-            collected: list[str] = []
-            yield _sse("status", {"phase": "generating", "message": "正在整理答案"})
-            try:
-                for text in stream_answer_chain(
-                    question=content,
-                    analysis=analysis,
-                    memory_summary=memory_context,
-                    recent_messages=recent_messages,
-                    evidence_context=evidence_context,
-                ):
-                    if not text:
-                        continue
-                    collected.append(text)
-                    yield _sse("delta", {"content": text})
+                yield _sse("progress", _build_progress_payload("completed"))
+                yield _sse("end", {"answer": answer_text, "summary": summary_text, "suggestions": suggestions})
             except Exception as exc:
-                logger.exception("stream answer failed")
-                if _is_model_runtime_error(exc) and not collected:
-                    fallback_result = _build_local_fallback_result(
-                        content=content,
-                        retrieval_results=retrieval_results,
-                        analysis=analysis,
-                        understanding=understanding,
-                    )
-                    session_row.summary_json = json.dumps(fallback_result["session_summary"], ensure_ascii=False)
-                    assistant_message = Message(
-                        session_id=session_id,
-                        role="assistant",
-                        content=fallback_result["answer"],
-                        references_json=json.dumps(fallback_result["references"], ensure_ascii=False),
-                    )
-                    db.add(assistant_message)
-                    if not session_row.title or session_row.title == "新建会话":
-                        session_row.title = content[:20]
-                    db.add(session_row)
-                    db.commit()
-                    yield _sse("delta", {"content": fallback_result["answer"]})
-                    yield _sse(
-                        "end",
-                        {
-                            "answer": fallback_result["answer"],
-                            "summary": fallback_result["summary"],
-                            "suggestions": fallback_result["suggestions"],
-                        },
-                    )
-                    return
-                if not collected and _should_fallback_no_answer(retrieval_results):
-                    fallback_result = _build_local_fallback_result(
-                        content=content,
-                        retrieval_results=retrieval_results,
-                        analysis=analysis,
-                        understanding=understanding,
-                    )
-                    session_row.summary_json = json.dumps(fallback_result["session_summary"], ensure_ascii=False)
-                    assistant_message = Message(
-                        session_id=session_id,
-                        role="assistant",
-                        content=fallback_result["answer"],
-                        references_json=json.dumps(fallback_result["references"], ensure_ascii=False),
-                    )
-                    db.add(assistant_message)
-                    if not session_row.title or session_row.title == "新建会话":
-                        session_row.title = content[:20]
-                    db.add(session_row)
-                    db.commit()
-                    yield _sse("delta", {"content": fallback_result["answer"]})
-                    yield _sse(
-                        "end",
-                        {
-                            "answer": fallback_result["answer"],
-                            "summary": fallback_result["summary"],
-                            "suggestions": fallback_result["suggestions"],
-                        },
-                    )
-                    return
-                raise
-
-            answer_text = _strip_hidden_reasoning("".join(collected).strip())
-            if not answer_text and _should_fallback_no_answer(retrieval_results):
-                answer_text, references, suggestions = build_answer(content, retrieval_results)
-                references_payload = references
-            else:
-                references_payload = evidence_items
-                suggestions = extract_followup_questions(answer_text)
-
-            summary_text = extract_answer_summary(answer_text)
-            query_understanding = _serialize_model(understanding)
-            session_summary = build_session_summary(
-                question=content,
-                analysis=analysis,
-                answer_text=answer_text,
-                retrieval_results=retrieval_results,
-                query_understanding=query_understanding,
-            )
-            session_row.summary_json = json.dumps(session_summary, ensure_ascii=False)
-
-            assistant_message = Message(
-                session_id=session_id,
-                role="assistant",
-                content=answer_text,
-                references_json=json.dumps(references_payload, ensure_ascii=False),
-            )
-            db.add(assistant_message)
-            if not session_row.title or session_row.title == "新建会话":
-                session_row.title = content[:20]
-            db.add(session_row)
-            db.commit()
-            yield _sse("end", {"answer": answer_text, "summary": summary_text, "suggestions": suggestions})
-        except Exception as exc:
-            db.rollback()
-            code, message = _friendly_stream_error(exc)
-            yield _sse("error", {"code": code, "message": message})
+                db.rollback()
+                code, message = _friendly_stream_error(exc)
+                yield _sse("error", {"code": code, "message": message})
 
     return StreamingResponse(
         event_stream(),

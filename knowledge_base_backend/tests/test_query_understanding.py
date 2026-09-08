@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 from app.services.query_understanding import QueryUnderstandingService
 
@@ -6,6 +7,9 @@ from app.services.query_understanding import QueryUnderstandingService
 class QueryUnderstandingTests(unittest.TestCase):
     def setUp(self) -> None:
         self.service = QueryUnderstandingService()
+        provider = patch.object(self.service, "understand_with_fallback", return_value=None)
+        provider.start()
+        self.addCleanup(provider.stop)
 
     def test_strong_keyword_routes_to_kb_qa(self) -> None:
         result = self.service.understand(

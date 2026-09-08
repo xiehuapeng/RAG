@@ -1,6 +1,6 @@
 import unittest
 
-from app.services.retrieval import _passes_relevance_gate
+from app.services.retrieval_langchain import _passes_relevance_gate
 
 
 class RetrievalGateTests(unittest.TestCase):

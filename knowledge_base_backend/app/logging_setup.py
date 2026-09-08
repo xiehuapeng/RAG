@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 LOG_FILE_NAME = "backend.log"
-LOG_FORMAT = "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
+LOG_FORMAT = "%(asctime)s | %(message)s"
 
 
 def setup_daily_file_logging(project_root: Path) -> Path:

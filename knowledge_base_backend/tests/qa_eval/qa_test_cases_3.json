@@ -1,0 +1,2090 @@
+[
+  {
+    "id": "qa_001",
+    "name": "挂账全流程操作指导",
+    "question": "客户对往期账单费用有异议，我作为客户经理该怎么完整办理挂账？",
+    "must_have_points": [
+      "挂账申请",
+      "权限校验",
+      "审核通过",
+      "挂账处理"
+    ],
+    "nice_to_have_points": [
+      "查询状态",
+      "解挂调账"
+    ],
+    "fatal_mistakes": [
+      "直接修改账单",
+      "无需审核"
+    ],
+    "reference_answer": "先查询客户未销账历史账单，填写异议原因与挂账金额提交申请，经审核通过后执行挂账，后续可根据核查结果解挂或调账。",
+    "threshold": 0.67,
+    "category": "operation_steps",
+    "source_basis": "CMIOT-C04 挂账操作指南全流程"
+  },
+  {
+    "id": "qa_002",
+    "name": "挂账权限与角色冲突",
+    "question": "我能不能同时拥有挂账申请和挂账审核的权限？",
+    "must_have_points": [
+      "互斥",
+      "不能同时赋予"
+    ],
+    "nice_to_have_points": [
+      "申请角色",
+      "审核角色"
+    ],
+    "fatal_mistakes": [
+      "可同时拥有",
+      "一人操作全流程"
+    ],
+    "reference_answer": "挂账申请与审核角色互斥，同一操作员不能同时被赋予这两种权限。",
+    "threshold": 1.0,
+    "category": "restrictions",
+    "source_basis": "CMIOT-C04 挂账操作指南 2. 挂账 - 预置条件"
+  },
+  {
+    "id": "qa_003",
+    "name": "广东客户挂账特殊流程",
+    "question": "给广东的物联网客户办挂账，和其他省份有什么核心区别？",
+    "must_have_points": [
+      "省侧发起",
+      "省内 OA 审批",
+      "CMIOT 仅处理"
+    ],
+    "nice_to_have_points": [
+      "批量挂账",
+      "文件上传"
+    ],
+    "fatal_mistakes": [
+      "前台直接申请",
+      "地市审核"
+    ],
+    "reference_answer": "广东需由省 CRM 发起并经省内 OA 审批，再同步至 CMIOT 处理，CMIOT 不下放申请与审核功能。",
+    "threshold": 0.67,
+    "category": "operation_steps",
+    "source_basis": "CMIOT-C04 挂账操作指南 4. 挂账 - 广东挂账业务"
+  },
+  {
+    "id": "qa_004",
+    "name": "缴费回退失败发票处理",
+    "question": "客户要回退缴费但提示发票问题，我该怎么排查处理？",
+    "must_have_points": [
+      "冲红发票",
+      "作废发票",
+      "余额校验"
+    ],
+    "nice_to_have_points": [
+      "预存发票",
+      "月结发票"
+    ],
+    "fatal_mistakes": [
+      "直接强制回退",
+      "忽略发票"
+    ],
+    "reference_answer": "先检查是否开具预存或月结发票，需将对应发票全额冲红或作废，确保发票余额充足后再回退。",
+    "threshold": 0.75,
+    "category": "error_handling",
+    "source_basis": "CMIOT-C01 缴费操作指南 4. 缴费操作 - 注意事项"
+  },
+  {
+    "id": "qa_005",
+    "name": "批量缴费文件易错点",
+    "question": "给一批客户做批量缴费，上传文件总失败，常见问题有哪些？",
+    "must_have_points": [
+      "文件名重复",
+      "含中文",
+      "保留定义行"
+    ],
+    "nice_to_have_points": [
+      "金额单位",
+      "逗号格式"
+    ],
+    "fatal_mistakes": [
+      "文件名随意",
+      "保留说明行"
+    ],
+    "reference_answer": "批量缴费文件失败多因文件名重复、含中文、保留定义行，还需注意金额单位为分、用英文逗号分隔。",
+    "threshold": 0.67,
+    "category": "batch_operation",
+    "source_basis": "CMIOT-C01 缴费操作指南 3.3 缴费操作 - 批量缴费"
+  },
+  {
+    "id": "qa_006",
+    "name": "滞纳金减免与发票冲突",
+    "question": "客户要减免滞纳金但开过发票，为什么办不了该怎么解决？",
+    "must_have_points": [
+      "发票冲红",
+      "作废",
+      "解除限制"
+    ],
+    "nice_to_have_points": [
+      "账期匹配"
+    ],
+    "fatal_mistakes": [
+      "直接减免",
+      "无需处理发票"
+    ],
+    "reference_answer": "已开含滞纳金的月结发票无法直接减免，需先冲红或作废对应账期发票，再申请滞纳金减免。",
+    "threshold": 0.75,
+    "category": "error_handling",
+    "source_basis": "CMIOT-C10 滞纳金减免以及导出操作指南 5. 滞纳金减免注意事项"
+  },
+  {
+    "id": "qa_007",
+    "name": "调账与停机风险告知",
+    "question": "我要给客户调增欠费金额，需要提醒客户什么风险？",
+    "must_have_points": [
+      "到期未缴",
+      "信控停机",
+      "账户停用"
+    ],
+    "nice_to_have_points": [
+      "缴费期限"
+    ],
+    "fatal_mistakes": [
+      "无任何风险",
+      "不影响使用"
+    ],
+    "reference_answer": "调增欠费后若到期未缴清，系统会自动对账户下用户执行信控停机，影响业务使用。",
+    "threshold": 0.75,
+    "category": "faq",
+    "source_basis": "CMIOT-C02 调账操作指南 3.1 调账流程 - 调帐申请"
+  },
+  {
+    "id": "qa_008",
+    "name": "代付账户缴费回退限制",
+    "question": "客户是省 BOSS 合账代付的成员账户，我能给他办缴费回退吗？",
+    "must_have_points": [
+      "不允许",
+      "生效代付关系",
+      "产生历史欠费"
+    ],
+    "nice_to_have_points": [
+      "在途申请校验"
+    ],
+    "fatal_mistakes": [
+      "可以回退",
+      "直接操作"
+    ],
+    "reference_answer": "具备生效省 BOSS 合账代付关系的账户，不允许办理缴费回退等会产生历史欠费的操作。",
+    "threshold": 0.75,
+    "category": "restrictions",
+    "source_basis": "CMIOT-C01 缴费操作指南 4. 缴费操作 - 注意事项"
+  },
+  {
+    "id": "qa_009",
+    "name": "预开预存额度申请上限",
+    "question": "给客户申请预开预存发票额度，最多能申请多少，有什么管控？",
+    "must_have_points": [
+      "100 万",
+      "单笔上限",
+      "未回款禁止重复申请"
+    ],
+    "nice_to_have_points": [
+      "附件上传"
+    ],
+    "fatal_mistakes": [
+      "无金额限制",
+      "可重复申请"
+    ],
+    "reference_answer": "单笔预开额度最高 100 万，账户存在未回款额度时，禁止再次发起新申请。",
+    "threshold": 0.75,
+    "category": "restrictions",
+    "source_basis": "CMIOT-C15 预开预存发票操作指南 3. 预开预存发票 - 操作步骤"
+  },
+  {
+    "id": "qa_010",
+    "name": "转账不可转金额类型",
+    "question": "客户想把账户里的钱转走，哪些余额是我不能给转的？",
+    "must_have_points": [
+      "调账金额",
+      "已开发票",
+      "未结算金额"
+    ],
+    "nice_to_have_points": [
+      "赠金"
+    ],
+    "fatal_mistakes": [
+      "全部可转",
+      "调账金额可转"
+    ],
+    "reference_answer": "调账产生的金额、已开具发票的预存款、未结算金额都不支持办理转账。",
+    "threshold": 0.67,
+    "category": "restrictions",
+    "source_basis": "CMIOT-C06 转账操作指南 4. 转账 - 注意事项"
+  },
+  {
+    "id": "qa_011",
+    "name": "逾期欠费管控规则",
+    "question": "集团客户逾期欠费多久会被限制办理新业务？",
+    "must_have_points": [
+      "超 6 个月",
+      "后付费",
+      "红名单预付费"
+    ],
+    "nice_to_have_points": [
+      "白名单豁免"
+    ],
+    "fatal_mistakes": [
+      "3 个月",
+      "无时间限制"
+    ],
+    "reference_answer": "集团下后付费或红名单预付费账户逾期欠费超 6 个月，会被限制新开业务。",
+    "threshold": 0.67,
+    "category": "restrictions",
+    "source_basis": "CMIOT-C07 欠费数据查询操作指南 4. 欠费数据查询 - 逾期欠费判定注意事宜"
+  },
+  {
+    "id": "qa_012",
+    "name": "OneLink 冲正与缴费回退区别",
+    "question": "客户在 OneLink 充值错了，为什么不能用普通缴费回退，该用什么？",
+    "must_have_points": [
+      "OneLink 冲正",
+      "专用菜单",
+      "90 天限制"
+    ],
+    "nice_to_have_points": [
+      "集团统付"
+    ],
+    "fatal_mistakes": [
+      "缴费回退",
+      "任意回退"
+    ],
+    "reference_answer": "OneLink 充值需用专用冲正菜单，不支持普通缴费回退，且要求 90 天内、集团统付、未开票。",
+    "threshold": 0.75,
+    "category": "faq",
+    "source_basis": "CMIOT-C03 退款以及 OneLink 缴费冲正操作指南 8.OneLink 缴费冲正注意事项"
+  },
+  {
+    "id": "qa_013",
+    "name": "挂账解挂与调账选择",
+    "question": "客户挂账后核查费用无误，我该做解挂还是调账？",
+    "must_have_points": [
+      "解挂",
+      "金额回滚欠费"
+    ],
+    "nice_to_have_points": [
+      "调账用于费用错误"
+    ],
+    "fatal_mistakes": [
+      "做调账",
+      "直接撤销"
+    ],
+    "reference_answer": "费用收取无误应执行解挂，挂账金额会自动累计回客户欠费中；费用有误才做调账。",
+    "threshold": 0.67,
+    "category": "operation_steps",
+    "source_basis": "CMIOT-C04 挂账操作指南 3. 挂账 - 操作步骤"
+  },
+  {
+    "id": "qa_014",
+    "name": "调账审批下沉省份",
+    "question": "哪些省份的调账审批可以在地市完成，不用报省公司？",
+    "must_have_points": [
+      "山东",
+      "山西",
+      "福建",
+      "天津"
+    ],
+    "nice_to_have_points": [],
+    "fatal_mistakes": [
+      "全部省份",
+      "广东"
+    ],
+    "reference_answer": "山东、山西、福建、天津这四个省份调账审批下沉，可在地市完成审批。",
+    "threshold": 0.67,
+    "category": "restrictions",
+    "source_basis": "CMIOT-C02 调账操作指南 2. 调账 - 预置条件"
+  },
+  {
+    "id": "qa_015",
+    "name": "SIM 卡费导出数据说明",
+    "question": "我导出客户 SIM 卡费，为什么和实际应收对不上？",
+    "must_have_points": [
+      "不体现",
+      "调账",
+      "挂账",
+      "优惠减免"
+    ],
+    "nice_to_have_points": [
+      "合账代付"
+    ],
+    "fatal_mistakes": [
+      "完全一致",
+      "包含调整金额"
+    ],
+    "reference_answer": "SIM 卡费导出不体现合账代付、优惠减免、调账、挂账导致的金额变更，仅按原始出账展示。",
+    "threshold": 0.67,
+    "category": "account_billing",
+    "source_basis": "CMIOT-C08 电子对账单及用户账单查询操作指南 3.3 SIM 卡费导出"
+  },
+  {
+    "id": "qa_016",
+    "name": "滞纳金减免审批流程",
+    "question": "我作为区县客户经理，提交滞纳金减免该找谁审批？",
+    "must_have_points": [
+      "地市审批",
+      "同级审批",
+      "流程匹配"
+    ],
+    "nice_to_have_points": [
+      "省级审批"
+    ],
+    "fatal_mistakes": [
+      "自行审批",
+      "任意人员"
+    ],
+    "reference_answer": "区县操作员提交减免，需选择地市或同区县有权限的审批员，按对应流程完成审批。",
+    "threshold": 0.67,
+    "category": "operation_steps",
+    "source_basis": "CMIOT-C10 滞纳金减免以及导出操作指南 2. 滞纳金减免预置条件"
+  },
+  {
+    "id": "qa_017",
+    "name": "预存专票开具账户要求",
+    "question": "客户想开预存增值税专票，什么样的账户才符合要求？",
+    "must_have_points": [
+      "统付账户",
+      "专票属性为是"
+    ],
+    "nice_to_have_points": [
+      "非 BBC 账户"
+    ],
+    "fatal_mistakes": [
+      "个人账户",
+      "BBC 账户"
+    ],
+    "reference_answer": "仅统付账户且专票账户属性为 “是”，才可开具预存增值税专票，BBC 与个人账户不支持。",
+    "threshold": 0.75,
+    "category": "restrictions",
+    "source_basis": "CMIOT-C15 预开预存发票操作指南 5. 预开预存发票 - 注意事项"
+  },
+  {
+    "id": "qa_018",
+    "name": "大账户账单缴费操作",
+    "question": "客户是大账户，账单太多页面加载不出，该怎么缴费？",
+    "must_have_points": [
+      "账单明细级",
+      "异步查询",
+      "文件下载"
+    ],
+    "nice_to_have_points": [
+      "批量处理"
+    ],
+    "fatal_mistakes": [
+      "直接缴费",
+      "刷新页面"
+    ],
+    "reference_answer": "大账户需勾选账单明细级，通过异步查询生成文件下载查看后，再办理缴费。",
+    "threshold": 0.67,
+    "category": "operation_steps",
+    "source_basis": "CMIOT-C01 缴费操作指南 3.1 缴费"
+  },
+  {
+    "id": "qa_019",
+    "name": "挂账申请查询方式",
+    "question": "我记不住客户账号，用哪些信息可以查到并发起挂账？",
+    "must_have_points": [
+      "账户编码",
+      "客户编码",
+      "用户号码",
+      "群编码"
+    ],
+    "nice_to_have_points": [
+      "账务周期"
+    ],
+    "fatal_mistakes": [
+      "仅账号查询",
+      "仅手机号查询"
+    ],
+    "reference_answer": "可通过账户编码、客户编码、用户号码、群编码任一方式查询客户账户并发起挂账。",
+    "threshold": 0.67,
+    "category": "operation_steps",
+    "source_basis": "CMIOT-C04 挂账操作指南 3. 挂账 - 操作步骤"
+  },
+  {
+    "id": "qa_020",
+    "name": "调账回退时限要求",
+    "question": "之前给客户办的调账现在发现错了，还能回退吗？",
+    "must_have_points": [
+      "当月可回退",
+      "次月不可回退"
+    ],
+    "nice_to_have_points": [
+      "调账回退菜单"
+    ],
+    "fatal_mistakes": [
+      "任意时间可回退",
+      "跨年可回退"
+    ],
+    "reference_answer": "调账仅在当月可办理回退，次月及以后无法再执行调账回退操作。",
+    "threshold": 0.75,
+    "category": "restrictions",
+    "source_basis": "CMIOT-C02 调账操作指南 5. 调账 - 注意事项"
+  },
+  {
+    "id": "qa_021",
+    "name": "退款发票余额不足处理",
+    "question": "给客户退预存款提示发票余额不足，我该怎么处理？",
+    "must_have_points": [
+      "冲红发票",
+      "作废发票",
+      "释放额度"
+    ],
+    "nice_to_have_points": [
+      "预存发票"
+    ],
+    "fatal_mistakes": [
+      "强制退款",
+      "忽略提示"
+    ],
+    "reference_answer": "需先对已开具的预存发票进行冲红或作废，释放发票余额后再办理退款。",
+    "threshold": 0.75,
+    "category": "error_handling",
+    "source_basis": "CMIOT-C03 退款以及 OneLink 缴费冲正操作指南 4. 退款申请注意事项"
+  },
+  {
+    "id": "qa_022",
+    "name": "批量调账必填字段",
+    "question": "给广东客户做批量调账，文件里哪些字段必须填？",
+    "must_have_points": [
+      "地市编码",
+      "客户编码",
+      "客户名称"
+    ],
+    "nice_to_have_points": [
+      "账户编码"
+    ],
+    "fatal_mistakes": [
+      "可留空",
+      "随意填写"
+    ],
+    "reference_answer": "广东批量调账文件中地市编码、客户编码、客户名称为必填项，不可留空。",
+    "threshold": 0.67,
+    "category": "batch_operation",
+    "source_basis": "CMIOT-C02 调账操作指南 3.3 调账流程 - 批量调账"
+  },
+  {
+    "id": "qa_023",
+    "name": "欠费数据导出鉴权",
+    "question": "我要导出客户欠费数据，为什么提示没有权限？",
+    "must_have_points": [
+      "4A 金库鉴权",
+      "区域权限",
+      "角色权限"
+    ],
+    "nice_to_have_points": [
+      "欠费查询管理员"
+    ],
+    "fatal_mistakes": [
+      "任意导出",
+      "无需鉴权"
+    ],
+    "reference_answer": "导出欠费数据需通过 4A 金库鉴权，且仅能导出所在省份 / 地市数据，需对应角色权限。",
+    "threshold": 0.67,
+    "category": "error_handling",
+    "source_basis": "CMIOT-C07 欠费数据查询操作指南 3. 欠费数据查询 - 操作步骤"
+  },
+  {
+    "id": "qa_024",
+    "name": "销账日志查询必填项",
+    "question": "我想查客户销账记录，哪些信息是必须填写的？",
+    "must_have_points": [
+      "账期",
+      "账户编码",
+      "客户编码二选一"
+    ],
+    "nice_to_have_points": [
+      "账单类型"
+    ],
+    "fatal_mistakes": [
+      "可不填账期",
+      "仅填客户名"
+    ],
+    "reference_answer": "查询销账日志必须填写账期，且账户编码与客户编码需二选一填写。",
+    "threshold": 0.75,
+    "category": "required_materials",
+    "source_basis": "CMIOT-C12 销账数据查询操作指南 4. 销账数据查询 - 注意事项"
+  },
+  {
+    "id": "qa_025",
+    "name": "预开额度回退失败原因",
+    "question": "我想回退预开额度，系统提示失败，常见原因有哪些？",
+    "must_have_points": [
+      "已回款",
+      "已开票",
+      "超 180 天"
+    ],
+    "nice_to_have_points": [
+      "已回退过"
+    ],
+    "fatal_mistakes": [
+      "任意可回退",
+      "无需条件"
+    ],
+    "reference_answer": "预开额度已回款、已开具发票、超过 180 天或已回退过，都会导致回退失败。",
+    "threshold": 0.67,
+    "category": "error_handling",
+    "source_basis": "CMIOT-C15 预开预存发票操作指南 3. 预开预存发票 - 操作步骤"
+  },
+  {
+    "id": "qa_026",
+    "name": "支票缴费组合限制",
+    "question": "客户想用支票加现金一起缴费，为什么系统不让提交？",
+    "must_have_points": [
+      "支票不可组合",
+      "单独使用"
+    ],
+    "nice_to_have_points": [
+      "需审核"
+    ],
+    "fatal_mistakes": [
+      "可混合缴费",
+      "任意组合"
+    ],
+    "reference_answer": "支票缴费不支持与其他缴费方式组合使用，只能单独提交并完成审核。",
+    "threshold": 1.0,
+    "category": "restrictions",
+    "source_basis": "CMIOT-C01 缴费操作指南 3.1 缴费"
+  },
+  {
+    "id": "qa_027",
+    "name": "BBC 账户调账限制",
+    "question": "物联网 BBC 用户的账单，我能在 CMIOT 里直接调账吗？",
+    "must_have_points": [
+      "不能",
+      "省公司代付账单",
+      "调整"
+    ],
+    "nice_to_have_points": [],
+    "fatal_mistakes": [
+      "可以直接调账",
+      "前台操作"
+    ],
+    "reference_answer": "BBC 用户账单不支持在 CMIOT 调账，需在省公司代付账单中办理调整。",
+    "threshold": 1.0,
+    "category": "restrictions",
+    "source_basis": "CMIOT-C02 调账操作指南 5. 调账 - 注意事项"
+  },
+  {
+    "id": "qa_028",
+    "name": "滞纳金导出单位说明",
+    "question": "我导出的滞纳金数据，金额数字该怎么换算？",
+    "must_have_points": [
+      "单位为分",
+      "除以 100 换算元"
+    ],
+    "nice_to_have_points": [
+      "Excel 格式"
+    ],
+    "fatal_mistakes": [
+      "单位为元",
+      "直接使用"
+    ],
+    "reference_answer": "滞纳金导出文件金额单位为分，需将数字除以 100 换算为元。",
+    "threshold": 0.75,
+    "category": "account_billing",
+    "source_basis": "CMIOT-C10 滞纳金减免以及导出操作指南 8. 滞纳金导出操作步骤"
+  },
+  {
+    "id": "qa_029",
+    "name": "销户与预开额度冲突",
+    "question": "客户有预开预存额度没回款，我能给他办理销户吗？",
+    "must_have_points": [
+      "不允许",
+      "完成回款",
+      "才可销户"
+    ],
+    "nice_to_have_points": [],
+    "fatal_mistakes": [
+      "可以直接销户",
+      "无需回款"
+    ],
+    "reference_answer": "账户存在未回款的预开预存额度时，不允许办理销户业务。",
+    "threshold": 1.0,
+    "category": "restrictions",
+    "source_basis": "CMIOT-C15 预开预存发票操作指南 5. 预开预存发票 - 注意事项"
+  },
+  {
+    "id": "qa_030",
+    "name": "批量挂账捆绑操作",
+    "question": "我一次给客户挂了多个费用项，能单独审核其中一项吗？",
+    "must_have_points": [
+      "不能",
+      "捆绑操作",
+      "同一批次"
+    ],
+    "nice_to_have_points": [
+      "批次号"
+    ],
+    "fatal_mistakes": [
+      "单独审核",
+      "部分通过"
+    ],
+    "reference_answer": "同一批次提交的多个费用项需捆绑操作，不能单独审核或部分通过。",
+    "threshold": 0.75,
+    "category": "batch_operation",
+    "source_basis": "CMIOT-C04 挂账操作指南 3. 挂账 - 操作步骤"
+  },
+  {
+    "id": "qa_031",
+    "name": "月初未出账缴费回退",
+    "question": "月初没出账给客户缴的费，现在想回退为什么不行？",
+    "must_have_points": [
+      "转为预存",
+      "自动销账",
+      "不支持回退"
+    ],
+    "nice_to_have_points": [],
+    "fatal_mistakes": [
+      "可以回退",
+      "正常回退"
+    ],
+    "reference_answer": "月初未出账前缴费会转为预存，出账后自动销账，该类缴费不支持回退。",
+    "threshold": 0.75,
+    "category": "restrictions",
+    "source_basis": "CMIOT-C01 缴费操作指南 4. 缴费操作 - 注意事项"
+  },
+  {
+    "id": "qa_032",
+    "name": "调账附件格式要求",
+    "question": "上传调账审批附件，哪些格式可以用，大小有限制吗？",
+    "must_have_points": [
+      "doc",
+      "pdf",
+      "jpg",
+      "100M"
+    ],
+    "nice_to_have_points": [
+      "zip",
+      "rar"
+    ],
+    "fatal_mistakes": [
+      "任意格式",
+      "无大小限制"
+    ],
+    "reference_answer": "调账附件支持 doc、pdf、jpg 等格式，单文件最大不超过 100M。",
+    "threshold": 0.67,
+    "category": "required_materials",
+    "source_basis": "CMIOT-C02 调账操作指南 3.1 调账流程 - 调帐申请"
+  },
+  {
+    "id": "qa_033",
+    "name": "测试卡账户滞纳金减免限制",
+    "question": "客户是测试卡个付账户，我能给他办滞纳金减免吗？",
+    "must_have_points": [
+      "不允许",
+      "测试卡个付",
+      "禁止操作"
+    ],
+    "nice_to_have_points": [
+      "已销户也禁止"
+    ],
+    "fatal_mistakes": [
+      "可以办理",
+      "正常减免"
+    ],
+    "reference_answer": "测试卡个付账户、已销户账户均不允许办理滞纳金减免业务。",
+    "threshold": 0.75,
+    "category": "restrictions",
+    "source_basis": "CMIOT-C10 滞纳金减免以及导出操作指南 4. 省侧滞纳金减免"
+  },
+  {
+    "id": "qa_034",
+    "name": "回款回退与缴费回退区别",
+    "question": "预开额度的回款回退和缴费回退，对客户资金有什么不同影响？",
+    "must_have_points": [
+      "回款回退不解冻资金",
+      "缴费回退退回资金"
+    ],
+    "nice_to_have_points": [
+      "发票余额变化"
+    ],
+    "fatal_mistakes": [
+      "效果一样",
+      "资金都退回"
+    ],
+    "reference_answer": "回款回退仅解除关联不退回资金，缴费回退会将资金从账户退回并影响发票余额。",
+    "threshold": 0.67,
+    "category": "faq",
+    "source_basis": "CMIOT-C15 预开预存发票操作指南 5. 预开预存发票 - 注意事项"
+  },
+  {
+    "id": "qa_035",
+    "name": "审核员工挂账简化流程",
+    "question": "我有挂账审核权限，给客户办挂账可以简化流程吗？",
+    "must_have_points": [
+      "直接申请",
+      "直接处理",
+      "无需审核"
+    ],
+    "nice_to_have_points": [
+      "挂账操作"
+    ],
+    "fatal_mistakes": [
+      "仍需他人审核",
+      "流程不变"
+    ],
+    "reference_answer": "具备审核权限的员工可直接发起挂账申请并处理，无需再经过审核环节。",
+    "threshold": 0.67,
+    "category": "operation_steps",
+    "source_basis": "CMIOT-C04 挂账操作指南 1. 挂账 - 功能描述"
+  },
+  {
+    "id": "qa_036",
+    "name": "账单导出异步等待",
+    "question": "我导出客户号码级账单显示待处理，该怎么操作？",
+    "must_have_points": [
+      "等待处理成功",
+      "下载文件",
+      "异步导出"
+    ],
+    "nice_to_have_points": [
+      "刷新状态"
+    ],
+    "fatal_mistakes": [
+      "立即下载",
+      "重新提交"
+    ],
+    "reference_answer": "账单导出为异步任务，需等待状态变为处理成功后，再点击下载获取文件。",
+    "threshold": 0.67,
+    "category": "operation_steps",
+    "source_basis": "CMIOT-C08 电子对账单及用户账单查询操作指南 3. 电子对账单及用户账单查询 - 操作步骤"
+  },
+  {
+    "id": "qa_037",
+    "name": "调账原因类别选择",
+    "question": "给客户调账时，原因类别有哪些固定选项？",
+    "must_have_points": [
+      "计费账单",
+      "网络",
+      "公益性",
+      "公免自用",
+      "业务员差错"
+    ],
+    "nice_to_have_points": [],
+    "fatal_mistakes": [
+      "自定义填写",
+      "随意选择"
+    ],
+    "reference_answer": "调账原因固定为计费账单、网络、公益性、公免自用、业务员差错五个选项，不可自定义。",
+    "threshold": 0.67,
+    "category": "other",
+    "source_basis": "CMIOT-C02 调账操作指南 3.1 调账流程 - 调帐申请"
+  },
+  {
+    "id": "qa_038",
+    "name": "ESOP 缴费回退渠道",
+    "question": "客户通过 ESOP 资金池缴费，我该在哪里帮他回退？",
+    "must_have_points": [
+      "省侧原渠道",
+      "CMIOT 不可回退"
+    ],
+    "nice_to_have_points": [
+      "指定省份"
+    ],
+    "fatal_mistakes": [
+      "CMIOT 前台回退",
+      "任意渠道"
+    ],
+    "reference_answer": "ESOP 资金池缴费需在省侧原缴费渠道回退，不允许在 CMIOT 前台操作。",
+    "threshold": 0.75,
+    "category": "restrictions",
+    "source_basis": "CMIOT-C01 缴费操作指南 4. 缴费操作 - 注意事项"
+  },
+  {
+    "id": "qa_039",
+    "name": "预开发票全额开具要求",
+    "question": "客户申请了预开额度，发票可以分开开一部分吗？",
+    "must_have_points": [
+      "一次性开具",
+      "不允许部分开具"
+    ],
+    "nice_to_have_points": [],
+    "fatal_mistakes": [
+      "分次开具",
+      "部分开票"
+    ],
+    "reference_answer": "预开预存发票金额需一次性开具完成，不允许只开具部分额度。",
+    "threshold": 1.0,
+    "category": "restrictions",
+    "source_basis": "CMIOT-C15 预开预存发票操作指南 5. 预开预存发票 - 注意事项"
+  },
+  {
+    "id": "qa_040",
+    "name": "挂账账务周期默认值",
+    "question": "我办挂账没填账务周期，系统会默认选哪个账期？",
+    "must_have_points": [
+      "上一账期",
+      "上月账期"
+    ],
+    "nice_to_have_points": [
+      "yyyyMM 格式"
+    ],
+    "fatal_mistakes": [
+      "当前账期",
+      "无默认值"
+    ],
+    "reference_answer": "挂账申请不填写账务周期时，系统默认选择上一账期（上月）。",
+    "threshold": 1.0,
+    "category": "operation_steps",
+    "source_basis": "CMIOT-C04 挂账操作指南 5. 挂账 - 注意事项"
+  },
+  {
+    "id": "qa_041",
+    "name": "转账操作角色权限",
+    "question": "我要给客户办预存款转账，需要具备什么角色？",
+    "must_have_points": [
+      "营业员",
+      "营业员充值类"
+    ],
+    "nice_to_have_points": [
+      "转账菜单权限"
+    ],
+    "fatal_mistakes": [
+      "客户经理即可",
+      "无角色要求"
+    ],
+    "reference_answer": "办理预存款转账需具备营业员或营业员（充值类）角色及对应菜单权限。",
+    "threshold": 0.67,
+    "category": "restrictions",
+    "source_basis": "CMIOT-C06 转账操作指南 2. 转账 - 预置条件"
+  },
+  {
+    "id": "qa_042",
+    "name": "滞纳金减免确认环节",
+    "question": "滞纳金减免审批通过后，我还需要做什么操作？",
+    "must_have_points": [
+      "减免确认",
+      "查询交易申请",
+      "提交确认"
+    ],
+    "nice_to_have_points": [],
+    "fatal_mistakes": [
+      "自动生效",
+      "无需操作"
+    ],
+    "reference_answer": "审批通过后需在查询交易申请中对该笔减免做确认操作，流程才完成。",
+    "threshold": 0.67,
+    "category": "operation_steps",
+    "source_basis": "CMIOT-C10 滞纳金减免以及导出操作指南 3. 滞纳金减免操作步骤"
+  },
+  {
+    "id": "qa_043",
+    "name": "批量缴费回退标识要求",
+    "question": "办理批量缴费回退，必须填写什么关键标识？",
+    "must_have_points": [
+      "交易标识",
+      "必填项"
+    ],
+    "nice_to_have_points": [
+      "外部流水号"
+    ],
+    "fatal_mistakes": [
+      "可不填写",
+      "随意填写"
+    ],
+    "reference_answer": "批量缴费回退必须填写交易标识，该字段为必填项不可为空。",
+    "threshold": 0.75,
+    "category": "required_materials",
+    "source_basis": "CMIOT-C01 缴费操作指南 3.4 缴费操作 - 批量缴费回退"
+  },
+  {
+    "id": "qa_044",
+    "name": "销账导出格式支持",
+    "question": "我想导出销账记录，支持哪些文件格式？",
+    "must_have_points": [
+      "excel",
+      "csv",
+      "text"
+    ],
+    "nice_to_have_points": [
+      "excel2007"
+    ],
+    "fatal_mistakes": [
+      "仅支持 excel",
+      "仅支持 csv"
+    ],
+    "reference_answer": "销账记录导出支持 excel、excel2007、csv、text 四种格式。",
+    "threshold": 0.67,
+    "category": "batch_operation",
+    "source_basis": "CMIOT-C12 销账数据查询操作指南 4. 销账数据查询 - 注意事项"
+  },
+  {
+    "id": "qa_045",
+    "name": "调账确认取消操作",
+    "question": "调账审批通过但我不想办了，可以取消吗？",
+    "must_have_points": [
+      "可以取消",
+      "已审核可作废"
+    ],
+    "nice_to_have_points": [
+      "查询交易申请"
+    ],
+    "fatal_mistakes": [
+      "不可取消",
+      "必须执行"
+    ],
+    "reference_answer": "已通过审核但未确认的调账，可在查询交易申请中执行取消操作作废申请。",
+    "threshold": 0.67,
+    "category": "operation_steps",
+    "source_basis": "CMIOT-C02 调账操作指南 3.5 调账流程 - 调账确认"
+  },
+  {
+    "id": "qa_046",
+    "name": "欠费催缴数据同步时间",
+    "question": "系统欠费催缴数据什么时候同步给 OneLink？",
+    "must_have_points": [
+      "每月 6 日 6 时前",
+      "截止 5 日 24 时"
+    ],
+    "nice_to_have_points": [
+      "不含挂账费用"
+    ],
+    "fatal_mistakes": [
+      "每日同步",
+      "每周同步"
+    ],
+    "reference_answer": "每月 6 日 6 时前同步截止 5 日 24 时的欠费催缴数据至 OneLink，不含挂账费用。",
+    "threshold": 0.75,
+    "category": "account_billing",
+    "source_basis": "CMIOT-C07 欠费数据查询操作指南 1. 欠费数据查询 - 功能描述"
+  },
+  {
+    "id": "qa_047",
+    "name": "预开额度数据展示期限",
+    "question": "系统里能查到多久以前的预开预存额度记录？",
+    "must_have_points": [
+      "180 天内",
+      "超期不展示"
+    ],
+    "nice_to_have_points": [],
+    "fatal_mistakes": [
+      "全部展示",
+      "无时间限制"
+    ],
+    "reference_answer": "预开预存发票相关记录仅展示 180 天内的数据，超过期限不显示。",
+    "threshold": 0.75,
+    "category": "restrictions",
+    "source_basis": "CMIOT-C15 预开预存发票操作指南 5. 预开预存发票 - 注意事项"
+  },
+  {
+    "id": "qa_048",
+    "name": "挂账取消操作场景",
+    "question": "挂账申请还没审核，客户不想挂了我该怎么操作？",
+    "must_have_points": [
+      "挂账处理",
+      "取消申请",
+      "结束流程"
+    ],
+    "nice_to_have_points": [
+      "未审批状态"
+    ],
+    "fatal_mistakes": [
+      "审核拒绝",
+      "直接删除"
+    ],
+    "reference_answer": "未审批的挂账申请可在挂账处理中执行取消操作，直接结束流程。",
+    "threshold": 0.67,
+    "category": "operation_steps",
+    "source_basis": "CMIOT-C04 挂账操作指南 3. 挂账 - 操作步骤"
+  },
+  {
+    "id": "qa_049",
+    "name": "缴费找零方式选择",
+    "question": "客户缴费多交了，多余的钱可以怎么处理？",
+    "must_have_points": [
+      "转预存",
+      "找零"
+    ],
+    "nice_to_have_points": [],
+    "fatal_mistakes": [
+      "自动退回",
+      "强制转预存"
+    ],
+    "reference_answer": "缴费多余金额可选择转为客户预存款，或直接找零返还给客户。",
+    "threshold": 0.67,
+    "category": "other",
+    "source_basis": "CMIOT-C01 缴费操作指南 3.1 缴费"
+  },
+  {
+    "id": "qa_050",
+    "name": "合打账户滞纳金减免限制",
+    "question": "客户是合打账户，我能给他办理滞纳金减免吗？",
+    "must_have_points": [
+      "不允许",
+      "合打账户",
+      "禁止操作"
+    ],
+    "nice_to_have_points": [],
+    "fatal_mistakes": [
+      "可以办理",
+      "正常减免"
+    ],
+    "reference_answer": "合打账户不支持办理滞纳金减免业务，需单独账户申请。",
+    "threshold": 1.0,
+    "category": "restrictions",
+    "source_basis": "CMIOT-C10 滞纳金减免以及导出操作指南 4. 省侧滞纳金减免"
+  },
+  {
+    "id": "qa_051",
+    "name": "挂账功能权限配置检查",
+    "question": "作为运营人员，怎么检查操作员是否有挂账相关权限？",
+    "must_have_points": [
+      "申请权限",
+      "审核权限",
+      "处理权限",
+      "角色互斥"
+    ],
+    "nice_to_have_points": [
+      "地市 / 省级角色"
+    ],
+    "fatal_mistakes": [
+      "同一人可拥有全部权限",
+      "无需配置权限"
+    ],
+    "reference_answer": "需检查操作员是否配置挂账申请、审核、处理权限，且申请与审核角色互斥。",
+    "threshold": 0.67,
+    "category": "restrictions",
+    "source_basis": "CMIOT-C04 挂账操作指南 2. 挂账 - 预置条件"
+  },
+  {
+    "id": "qa_052",
+    "name": "批量挂账文件格式规范",
+    "question": "运营批量导入挂账文件，格式不符合要求会有什么问题？",
+    "must_have_points": [
+      "上传失败",
+      "格式错误",
+      "解压功能",
+      "英文逗号"
+    ],
+    "nice_to_have_points": [
+      "文件名规范"
+    ],
+    "fatal_mistakes": [
+      "任意格式均可",
+      "无需解压"
+    ],
+    "reference_answer": "批量挂账文件格式错误会导致上传失败，需支持解压、用英文逗号分隔且符合命名规范。",
+    "threshold": 0.67,
+    "category": "batch_operation",
+    "source_basis": "CMIOT-C04 挂账操作指南 4. 挂账 - 广东挂账业务"
+  },
+  {
+    "id": "qa_053",
+    "name": "缴费异常交易监控要点",
+    "question": "运营监控缴费交易，需要重点关注哪些异常情况？",
+    "must_have_points": [
+      "缴费回退",
+      "批量失败",
+      "发票异常",
+      "渠道限制"
+    ],
+    "nice_to_have_points": [
+      "超期回退"
+    ],
+    "fatal_mistakes": [
+      "仅关注成功交易",
+      "无需监控异常"
+    ],
+    "reference_answer": "需重点监控缴费回退、批量缴费失败、发票余额不足、ESOP 渠道违规回退等异常。",
+    "threshold": 0.67,
+    "category": "other",
+    "source_basis": "CMIOT-C01 缴费操作指南全文档"
+  },
+  {
+    "id": "qa_054",
+    "name": "调账审批流程配置",
+    "question": "运营配置调账流程，下沉省份和非下沉省份有什么区别？",
+    "must_have_points": [
+      "下沉省份",
+      "地市审批",
+      "非下沉",
+      "省审批"
+    ],
+    "nice_to_have_points": [
+      "区县申请限制"
+    ],
+    "fatal_mistakes": [
+      "所有省份流程一致",
+      "全部省审批"
+    ],
+    "reference_answer": "下沉省份可地市审批，非下沉省份需省审批，区县操作员仅可归属地市级审批。",
+    "threshold": 0.67,
+    "category": "operation_steps",
+    "source_basis": "CMIOT-C02 调账操作指南 2. 调账 - 预置条件"
+  },
+  {
+    "id": "qa_055",
+    "name": "退款风控规则配置",
+    "question": "运营配置退款风控，需要设置哪些关键校验规则？",
+    "must_have_points": [
+      "金额校验",
+      "发票校验",
+      "账户状态",
+      "赠金排除"
+    ],
+    "nice_to_have_points": [
+      "测试卡限制"
+    ],
+    "fatal_mistakes": [
+      "无校验规则",
+      "任意退款"
+    ],
+    "reference_answer": "需配置金额不超预存、发票余额充足、账户正常、排除赠金与测试卡等校验规则。",
+    "threshold": 0.67,
+    "category": "restrictions",
+    "source_basis": "CMIOT-C03 退款以及 OneLink 缴费冲正操作指南全文档"
+  },
+  {
+    "id": "qa_056",
+    "name": "OneLink 冲正运营管控",
+    "question": "运营管控 OneLink 冲正业务，需要限制哪些关键条件？",
+    "must_have_points": [
+      "90 天限制",
+      "集团统付",
+      "未开票",
+      "时段限制"
+    ],
+    "nice_to_have_points": [
+      "账户状态"
+    ],
+    "fatal_mistakes": [
+      "无限制条件",
+      "任意冲正"
+    ],
+    "reference_answer": "需限制 90 天内、集团统付、未开发票、22:50-00:10 禁止操作及账户未销户。",
+    "threshold": 0.67,
+    "category": "restrictions",
+    "source_basis": "CMIOT-C03 退款以及 OneLink 缴费冲正操作指南 8.OneLink 缴费冲正注意事项"
+  },
+  {
+    "id": "qa_057",
+    "name": "转账功能运营校验规则",
+    "question": "运营配置预存款转账，需要开启哪些风控校验？",
+    "must_have_points": [
+      "调账金额排除",
+      "发票余额校验",
+      "未结算排除"
+    ],
+    "nice_to_have_points": [
+      "转出方余额"
+    ],
+    "fatal_mistakes": [
+      "全部金额可转",
+      "无校验"
+    ],
+    "reference_answer": "需开启排除调账金额、发票余额充足、排除未结算金额的转账校验规则。",
+    "threshold": 0.67,
+    "category": "restrictions",
+    "source_basis": "CMIOT-C06 转账操作指南 4. 转账 - 注意事项"
+  },
+  {
+    "id": "qa_058",
+    "name": "欠费数据统计口径",
+    "question": "运营统计欠费数据，系统统计口径包含哪些内容？",
+    "must_have_points": [
+      "每日凌晨",
+      "已出账未缴",
+      "不含挂账",
+      "不含托收"
+    ],
+    "nice_to_have_points": [
+      "红名单账户"
+    ],
+    "fatal_mistakes": [
+      "包含挂账费用",
+      "实时统计"
+    ],
+    "reference_answer": "系统每日凌晨统计已出账未缴费用，不含银行托收、挂账费用，包含红名单账户。",
+    "threshold": 0.67,
+    "category": "account_billing",
+    "source_basis": "CMIOT-C07 欠费数据查询操作指南 1. 欠费数据查询 - 功能描述"
+  },
+  {
+    "id": "qa_059",
+    "name": "逾期欠费运营管控规则",
+    "question": "运营配置逾期欠费管控，触发限制的条件是什么？",
+    "must_have_points": [
+      "超 6 个月",
+      "后付费",
+      "红名单预付费"
+    ],
+    "nice_to_have_points": [
+      "白名单豁免"
+    ],
+    "fatal_mistakes": [
+      "3 个月触发",
+      "全部客户管控"
+    ],
+    "reference_answer": "集团下后付费或红名单预付费账户逾期欠费超 6 个月，触发新开业务限制。",
+    "threshold": 0.67,
+    "category": "restrictions",
+    "source_basis": "CMIOT-C07 欠费数据查询操作指南 4. 欠费数据查询 - 逾期欠费判定注意事宜"
+  },
+  {
+    "id": "qa_060",
+    "name": "账单导出运营权限管控",
+    "question": "运营管控账单导出权限，需要配置哪些校验？",
+    "must_have_points": [
+      "金库鉴权",
+      "区域权限",
+      "角色权限"
+    ],
+    "nice_to_have_points": [
+      "导出格式限制"
+    ],
+    "fatal_mistakes": [
+      "任意导出",
+      "无需鉴权"
+    ],
+    "reference_answer": "需配置 4A 金库鉴权、仅所属省份 / 地市可导出、对应角色权限的管控规则。",
+    "threshold": 0.67,
+    "category": "restrictions",
+    "source_basis": "CMIOT-C08 电子对账单及用户账单查询操作指南全文档"
+  },
+  {
+    "id": "qa_061",
+    "name": "滞纳金减免流程运营配置",
+    "question": "运营配置滞纳金减免流程，支持哪些审批层级？",
+    "must_have_points": [
+      "省审省",
+      "地市审省",
+      "区县审区县",
+      "地市审地市",
+      "区县审地市"
+    ],
+    "nice_to_have_points": [],
+    "fatal_mistakes": [
+      "仅省级审批",
+      "仅地市审批"
+    ],
+    "reference_answer": "支持省审省、地市审省、区县审区县、地市审地市、区县审地市五种审批流程。",
+    "threshold": 0.67,
+    "category": "operation_steps",
+    "source_basis": "CMIOT-C10 滞纳金减免以及导出操作指南 2. 滞纳金减免预置条件"
+  },
+  {
+    "id": "qa_062",
+    "name": "滞纳金减免省侧运营管控",
+    "question": "运营管控省侧滞纳金减免，CMIOT 需要下架哪些功能？",
+    "must_have_points": [
+      "申请功能",
+      "审核功能",
+      "仅保留查询"
+    ],
+    "nice_to_have_points": [
+      "短信功能下架"
+    ],
+    "fatal_mistakes": [
+      "保留全部功能",
+      "无需下架"
+    ],
+    "reference_answer": "省侧发起滞纳金减免时，CMIOT 需下架申请、审核功能，仅保留查询与详情查看功能。",
+    "threshold": 0.67,
+    "category": "restrictions",
+    "source_basis": "CMIOT-C10 滞纳金减免以及导出操作指南 4. 省侧滞纳金减免"
+  },
+  {
+    "id": "qa_063",
+    "name": "销账数据导出运营规范",
+    "question": "运营管理销账数据导出，需要遵守哪些规范？",
+    "must_have_points": [
+      "金库鉴权",
+      "格式支持",
+      "账期必填"
+    ],
+    "nice_to_have_points": [
+      "异步导出"
+    ],
+    "fatal_mistakes": [
+      "无需鉴权",
+      "任意格式"
+    ],
+    "reference_answer": "销账导出需通过金库鉴权，支持 excel/csv/text 等格式，且必须填写账期。",
+    "threshold": 0.67,
+    "category": "batch_operation",
+    "source_basis": "CMIOT-C12 销账数据查询操作指南 4. 销账数据查询 - 注意事项"
+  },
+  {
+    "id": "qa_064",
+    "name": "预开预存额度运营管控",
+    "question": "运营管控预开预存额度，需要设置哪些上限规则？",
+    "must_have_points": [
+      "单笔 100 万",
+      "未回款禁止重复申请",
+      "180 天展示"
+    ],
+    "nice_to_have_points": [
+      "专票限制"
+    ],
+    "fatal_mistakes": [
+      "无金额限制",
+      "可重复申请"
+    ],
+    "reference_answer": "需设置单笔上限 100 万、未回款禁止重复申请、数据仅展示 180 天内规则。",
+    "threshold": 0.67,
+    "category": "restrictions",
+    "source_basis": "CMIOT-C15 预开预存发票操作指南全文档"
+  },
+  {
+    "id": "qa_065",
+    "name": "预存专票运营开通范围",
+    "question": "运营开通预存专票功能，试点省份包含哪些？",
+    "must_have_points": [
+      "山西",
+      "广东",
+      "北京",
+      "福建",
+      "云南"
+    ],
+    "nice_to_have_points": [
+      "河北",
+      "湖南"
+    ],
+    "fatal_mistakes": [
+      "全部省份开通",
+      "仅一线城市"
+    ],
+    "reference_answer": "预存专票试点包含山西、广东、北京、福建、云南、河北、湖南等省份。",
+    "threshold": 0.67,
+    "category": "restrictions",
+    "source_basis": "CMIOT-C15 预开预存发票操作指南 1. 预开预存发票 - 功能概述"
+  },
+  {
+    "id": "qa_066",
+    "name": "挂账审核日期运营限制",
+    "question": "运营配置挂账审核查询，日期范围限制是多少？",
+    "must_have_points": [
+      "间隔不超 30 天",
+      "起止日期"
+    ],
+    "nice_to_have_points": [
+      "仅查未审批"
+    ],
+    "fatal_mistakes": [
+      "无日期限制",
+      "间隔任意"
+    ],
+    "reference_answer": "挂账审核查询需配置起止日期间隔不超过 30 天的系统限制。",
+    "threshold": 0.75,
+    "category": "restrictions",
+    "source_basis": "CMIOT-C04 挂账操作指南 3. 挂账 - 操作步骤"
+  },
+  {
+    "id": "qa_067",
+    "name": "批量缴费运营失败处理",
+    "question": "运营处理批量缴费失败任务，该怎么排查原因？",
+    "must_have_points": [
+      "查看详情",
+      "文件格式",
+      "字段校验",
+      "金额单位"
+    ],
+    "nice_to_have_points": [
+      "账户状态"
+    ],
+    "fatal_mistakes": [
+      "重新上传即可",
+      "无需排查"
+    ],
+    "reference_answer": "需查看失败详情，检查文件格式、必填字段、金额单位、账户状态等问题。",
+    "threshold": 0.67,
+    "category": "error_handling",
+    "source_basis": "CMIOT-C01 缴费操作指南 3.3 缴费操作 - 批量缴费"
+  },
+  {
+    "id": "qa_068",
+    "name": "调账附件运营规范",
+    "question": "运营管理调账附件上传，需要规范哪些要求？",
+    "must_have_points": [
+      "格式支持",
+      "大小 100M",
+      "权限控制",
+      "可选上传"
+    ],
+    "nice_to_have_points": [
+      "单附件限制"
+    ],
+    "fatal_mistakes": [
+      "任意格式",
+      "无大小限制"
+    ],
+    "reference_answer": "需规范附件格式、单文件≤100M、审批人仅可查看下载、支持删除的要求。",
+    "threshold": 0.67,
+    "category": "required_materials",
+    "source_basis": "CMIOT-C02 调账操作指南 3.1 调账流程 - 调帐申请"
+  },
+  {
+    "id": "qa_069",
+    "name": "退款方式运营配置",
+    "question": "运营配置退款方式，需要开放哪些退款类型？",
+    "must_have_points": [
+      "现金",
+      "信用卡",
+      "转财务统付",
+      "借记卡"
+    ],
+    "nice_to_have_points": [
+      "支票"
+    ],
+    "fatal_mistakes": [
+      "仅支持现金",
+      "仅支持转账"
+    ],
+    "reference_answer": "需开放现金、信用卡、转财务统付、借记卡、支票等退款方式。",
+    "threshold": 0.67,
+    "category": "other",
+    "source_basis": "CMIOT-C03 退款以及 OneLink 缴费冲正操作指南 3. 退款申请操作步骤"
+  },
+  {
+    "id": "qa_070",
+    "name": "欠费数据运营导出权限",
+    "question": "运营分配欠费数据导出权限，需要遵循什么原则？",
+    "must_have_points": [
+      "区域隔离",
+      "不可跨省",
+      "金库鉴权",
+      "角色对应"
+    ],
+    "nice_to_have_points": [
+      "管理员专属"
+    ],
+    "fatal_mistakes": [
+      "任意权限导出",
+      "跨省查询"
+    ],
+    "reference_answer": "遵循区域隔离原则，不可跨省 / 地市查询，需金库鉴权且对应管理员角色。",
+    "threshold": 0.67,
+    "category": "restrictions",
+    "source_basis": "CMIOT-C07 欠费数据查询操作指南 3. 欠费数据查询 - 操作步骤"
+  },
+  {
+    "id": "qa_071",
+    "name": "SIM 卡费导出运营口径",
+    "question": "运营核对 SIM 卡费导出数据，口径为什么和应收不一致？",
+    "must_have_points": [
+      "不含调账",
+      "不含挂账",
+      "不含优惠",
+      "不含代付"
+    ],
+    "nice_to_have_points": [],
+    "fatal_mistakes": [
+      "完全一致",
+      "包含调整金额"
+    ],
+    "reference_answer": "SIM 卡费导出不含调账、挂账、优惠减免、合账代付的金额变更，按原始出账统计。",
+    "threshold": 0.67,
+    "category": "account_billing",
+    "source_basis": "CMIOT-C08 电子对账单及用户账单查询操作指南 3.3 SIM 卡费导出"
+  },
+  {
+    "id": "qa_072",
+    "name": "滞纳金导出运营格式",
+    "question": "运营配置滞纳金导出功能，文件格式和单位是什么？",
+    "must_have_points": [
+      "Excel 格式",
+      "单位为分",
+      "客户维度"
+    ],
+    "nice_to_have_points": [
+      "异步导出"
+    ],
+    "fatal_mistakes": [
+      "单位为元",
+      "txt 格式"
+    ],
+    "reference_answer": "滞纳金导出为 Excel 格式，按客户维度统计，金额单位为分。",
+    "threshold": 0.75,
+    "category": "batch_operation",
+    "source_basis": "CMIOT-C10 滞纳金减免以及导出操作指南 8. 滞纳金导出操作步骤"
+  },
+  {
+    "id": "qa_073",
+    "name": "预开额度回退运营管控",
+    "question": "运营管控预开额度回退，禁止回退的条件有哪些？",
+    "must_have_points": [
+      "已回款",
+      "已开票",
+      "超 180 天",
+      "已回退"
+    ],
+    "nice_to_have_points": [],
+    "fatal_mistakes": [
+      "任意可回退",
+      "无禁止条件"
+    ],
+    "reference_answer": "已回款、已开票、超 180 天、已回退过的预开额度，禁止办理回退。",
+    "threshold": 0.67,
+    "category": "restrictions",
+    "source_basis": "CMIOT-C15 预开预存发票操作指南 3. 预开预存发票 - 操作步骤"
+  },
+  {
+    "id": "qa_074",
+    "name": "挂账批量处理运营规则",
+    "question": "运营配置挂账批量处理，同一批次规则是什么？",
+    "must_have_points": [
+      "捆绑操作",
+      "统一审核",
+      "不可拆分",
+      "批次号关联"
+    ],
+    "nice_to_have_points": [],
+    "fatal_mistakes": [
+      "可单独审核",
+      "拆分处理"
+    ],
+    "reference_answer": "同一批次挂账申请需捆绑操作、统一审核，不可拆分处理，按批次号关联。",
+    "threshold": 0.75,
+    "category": "batch_operation",
+    "source_basis": "CMIOT-C04 挂账操作指南 3. 挂账 - 操作步骤"
+  },
+  {
+    "id": "qa_075",
+    "name": "缴费回退运营稽核要点",
+    "question": "运营稽核缴费回退业务，重点核对哪些内容？",
+    "must_have_points": [
+      "回退期限",
+      "发票状态",
+      "渠道合规",
+      "账户状态"
+    ],
+    "nice_to_have_points": [
+      "回退金额"
+    ],
+    "fatal_mistakes": [
+      "仅核对金额",
+      "无需稽核"
+    ],
+    "reference_answer": "重点核对 90 天期限、发票冲红、渠道合规、账户无代付关系等内容。",
+    "threshold": 0.67,
+    "category": "other",
+    "source_basis": "CMIOT-C01 缴费操作指南 4. 缴费操作 - 注意事项"
+  },
+  {
+    "id": "qa_076",
+    "name": "调账回退运营时限",
+    "question": "运营配置调账回退功能，时限规则是什么？",
+    "must_have_points": [
+      "当月可回退",
+      "次月不可回退"
+    ],
+    "nice_to_have_points": [
+      "菜单入口"
+    ],
+    "fatal_mistakes": [
+      "任意时间回退",
+      "跨年可回退"
+    ],
+    "reference_answer": "调账回退仅允许当月办理，次月及以后系统禁止执行回退操作。",
+    "threshold": 0.75,
+    "category": "restrictions",
+    "source_basis": "CMIOT-C02 调账操作指南 5. 调账 - 注意事项"
+  },
+  {
+    "id": "qa_077",
+    "name": "销户业务运营前置校验",
+    "question": "运营配置销户前置校验，需要拦截哪些场景？",
+    "must_have_points": [
+      "预开额度未回款",
+      "欠费未结清",
+      "挂账未处理"
+    ],
+    "nice_to_have_points": [
+      "调账未完成"
+    ],
+    "fatal_mistakes": [
+      "无校验拦截",
+      "直接销户"
+    ],
+    "reference_answer": "销户需拦截预开额度未回款、欠费未结清、挂账未处理的账户。",
+    "threshold": 0.67,
+    "category": "restrictions",
+    "source_basis": "CMIOT-C15 预开预存发票操作指南 5. 预开预存发票 - 注意事项"
+  },
+  {
+    "id": "qa_078",
+    "name": "大账户运营缴费优化",
+    "question": "运营优化大账户缴费体验，需要开启什么功能？",
+    "must_have_points": [
+      "账单明细级",
+      "异步查询",
+      "文件下载"
+    ],
+    "nice_to_have_points": [
+      "批量处理"
+    ],
+    "fatal_mistakes": [
+      "直接加载",
+      "刷新页面"
+    ],
+    "reference_answer": "需开启账单明细级异步查询功能，生成文件供下载后办理缴费。",
+    "threshold": 0.67,
+    "category": "operation_steps",
+    "source_basis": "CMIOT-C01 缴费操作指南 3.1 缴费"
+  },
+  {
+    "id": "qa_079",
+    "name": "挂账状态运营监控",
+    "question": "运营监控挂账流程，重点关注哪些状态节点？",
+    "must_have_points": [
+      "未审批",
+      "已通过",
+      "已挂账",
+      "已解挂",
+      "已调账"
+    ],
+    "nice_to_have_points": [
+      "已取消"
+    ],
+    "fatal_mistakes": [
+      "仅关注成功状态",
+      "无需监控"
+    ],
+    "reference_answer": "重点监控未审批、已通过、已挂账、已解挂、已调账、已取消等状态。",
+    "threshold": 0.67,
+    "category": "other",
+    "source_basis": "CMIOT-C04 挂账操作指南 1. 挂账 - 功能描述"
+  },
+  {
+    "id": "qa_080",
+    "name": "滞纳金减免发票运营管控",
+    "question": "运营管控滞纳金减免与发票冲突，规则是什么？",
+    "must_have_points": [
+      "含滞纳金发票",
+      "冲红作废",
+      "方可减免"
+    ],
+    "nice_to_have_points": [
+      "账期匹配"
+    ],
+    "fatal_mistakes": [
+      "直接减免",
+      "无需处理发票"
+    ],
+    "reference_answer": "已开含滞纳金的月结发票，必须冲红或作废后，才可办理滞纳金减免。",
+    "threshold": 0.75,
+    "category": "restrictions",
+    "source_basis": "CMIOT-C10 滞纳金减免以及导出操作指南 5. 滞纳金减免注意事项"
+  },
+  {
+    "id": "qa_081",
+    "name": "批量调账运营字段校验",
+    "question": "运营校验批量调账文件，必填字段有哪些？",
+    "must_have_points": [
+      "地市编码",
+      "客户编码",
+      "客户名称"
+    ],
+    "nice_to_have_points": [
+      "账户编码"
+    ],
+    "fatal_mistakes": [
+      "无必填字段",
+      "可留空"
+    ],
+    "reference_answer": "批量调账文件必填地市编码、客户编码、客户名称，下沉省份需严格校验。",
+    "threshold": 0.67,
+    "category": "required_materials",
+    "source_basis": "CMIOT-C02 调账操作指南 3.3 调账流程 - 批量调账"
+  },
+  {
+    "id": "qa_082",
+    "name": "转账运营风控拦截",
+    "question": "运营配置转账风控，需要拦截哪些转账请求？",
+    "must_have_points": [
+      "调账金额",
+      "已开发票",
+      "未结算金额",
+      "零余额"
+    ],
+    "nice_to_have_points": [
+      "代付账户"
+    ],
+    "fatal_mistakes": [
+      "全部放行",
+      "无拦截"
+    ],
+    "reference_answer": "拦截调账金额、已开发票、未结算金额、零余额及代付账户的转账请求。",
+    "threshold": 0.67,
+    "category": "restrictions",
+    "source_basis": "CMIOT-C06 转账操作指南全文档"
+  },
+  {
+    "id": "qa_083",
+    "name": "缴费方式运营组合限制",
+    "question": "运营配置缴费方式，禁止组合的类型是什么？",
+    "must_have_points": [
+      "支票",
+      "禁止组合",
+      "单独使用"
+    ],
+    "nice_to_have_points": [
+      "需审核"
+    ],
+    "fatal_mistakes": [
+      "支票可混合",
+      "任意组合"
+    ],
+    "reference_answer": "支票缴费禁止与其他方式组合，必须单独提交且需要审核。",
+    "threshold": 1.0,
+    "category": "restrictions",
+    "source_basis": "CMIOT-C01 缴费操作指南 3.1 缴费"
+  },
+  {
+    "id": "qa_084",
+    "name": "省侧业务运营功能下架",
+    "question": "运营配置广东等省侧业务，CMIOT 需下架哪些功能？",
+    "must_have_points": [
+      "挂账申请",
+      "挂账审核",
+      "调账申请",
+      "调账审核"
+    ],
+    "nice_to_have_points": [
+      "滞纳金减免功能"
+    ],
+    "fatal_mistakes": [
+      "保留全部功能",
+      "无需下架"
+    ],
+    "reference_answer": "省侧业务需下架挂账 / 调账 / 滞纳金减免的申请与审核功能，仅保留查询。",
+    "threshold": 0.67,
+    "category": "restrictions",
+    "source_basis": "多文档省侧业务规则"
+  },
+  {
+    "id": "qa_085",
+    "name": "交易日志运营查询权限",
+    "question": "运营分配交易日志查询权限，可查询哪些类型？",
+    "must_have_points": [
+      "缴费",
+      "调账",
+      "挂账",
+      "退款",
+      "转账"
+    ],
+    "nice_to_have_points": [
+      "滞纳金减免"
+    ],
+    "fatal_mistakes": [
+      "仅查询缴费",
+      "无权限限制"
+    ],
+    "reference_answer": "可查询缴费、调账、挂账、退款、转账、滞纳金减免等全类型交易日志。",
+    "threshold": 0.67,
+    "category": "menu_path",
+    "source_basis": "多文档查询交易日志说明"
+  },
+  {
+    "id": "qa_086",
+    "name": "预开发票运营冲红规则",
+    "question": "运营配置预开发票冲红，规则是什么？",
+    "must_have_points": [
+      "全额冲红",
+      "收回发票",
+      "不支持部分"
+    ],
+    "nice_to_have_points": [
+      "余额回补"
+    ],
+    "fatal_mistakes": [
+      "部分冲红",
+      "无需收回"
+    ],
+    "reference_answer": "预开发票必须全额冲红、收回发票，不支持部分冲红，冲红后余额回补。",
+    "threshold": 0.75,
+    "category": "restrictions",
+    "source_basis": "CMIOT-C15 预开预存发票操作指南 5. 预开预存发票 - 注意事项"
+  },
+  {
+    "id": "qa_087",
+    "name": "欠费红名单运营配置",
+    "question": "运营配置欠费红名单，有哪些管控模式？",
+    "must_have_points": [
+      "免停可催",
+      "免停免催"
+    ],
+    "nice_to_have_points": [
+      "正常管控"
+    ],
+    "fatal_mistakes": [
+      "全部停机催缴",
+      "无模式区分"
+    ],
+    "reference_answer": "红名单配置分为免停可催、免停免催两种管控模式。",
+    "threshold": 0.67,
+    "category": "other",
+    "source_basis": "CMIOT-C07 欠费数据查询操作指南 3. 欠费数据查询 - 操作步骤"
+  },
+  {
+    "id": "qa_088",
+    "name": "批量任务运营监控",
+    "question": "运营监控批量业务任务，关注哪些状态？",
+    "must_have_points": [
+      "待处理",
+      "处理成功",
+      "处理失败",
+      "失败原因"
+    ],
+    "nice_to_have_points": [
+      "批次号"
+    ],
+    "fatal_mistakes": [
+      "仅关注成功",
+      "无需监控失败"
+    ],
+    "reference_answer": "重点监控待处理、处理成功、处理失败状态，及时核查失败原因。",
+    "threshold": 0.67,
+    "category": "other",
+    "source_basis": "多文档批量操作说明"
+  },
+  {
+    "id": "qa_089",
+    "name": "挂账金额运营校验",
+    "question": "运营配置挂账金额校验，规则是什么？",
+    "must_have_points": [
+      "不大于欠费金额",
+      "逐笔校验",
+      "总金额校验"
+    ],
+    "nice_to_have_points": [],
+    "fatal_mistakes": [
+      "可大于欠费",
+      "无校验"
+    ],
+    "reference_answer": "挂账金额必须逐笔与总金额校验，均不允许大于对应账单欠费金额。",
+    "threshold": 0.75,
+    "category": "restrictions",
+    "source_basis": "CMIOT-C04 挂账操作指南 3. 挂账 - 操作步骤"
+  },
+  {
+    "id": "qa_090",
+    "name": "BBC 账户运营业务限制",
+    "question": "运营配置 BBC 账户权限，禁止哪些操作？",
+    "must_have_points": [
+      "调账",
+      "缴费回退",
+      "滞纳金调整",
+      "预开发票"
+    ],
+    "nice_to_have_points": [
+      "挂账限制"
+    ],
+    "fatal_mistakes": [
+      "全部业务开放",
+      "无限制"
+    ],
+    "reference_answer": "BBC 账户禁止调账、缴费回退、滞纳金调整、预开预存发票等操作。",
+    "threshold": 0.67,
+    "category": "restrictions",
+    "source_basis": "多文档 BBC 账户限制规则"
+  },
+  {
+    "id": "qa_091",
+    "name": "代付关系运营业务拦截",
+    "question": "运营配置代付关系拦截，禁止哪些业务办理？",
+    "must_have_points": [
+      "缴费回退",
+      "调账",
+      "滞纳金调整",
+      "挂账"
+    ],
+    "nice_to_have_points": [
+      "退款"
+    ],
+    "fatal_mistakes": [
+      "正常办理",
+      "无拦截"
+    ],
+    "reference_answer": "生效代付关系账户，禁止缴费回退、调账、滞纳金调整、挂账等操作。",
+    "threshold": 0.67,
+    "category": "restrictions",
+    "source_basis": "多文档代付账户限制规则"
+  },
+  {
+    "id": "qa_092",
+    "name": "缴费找零运营配置",
+    "question": "运营配置缴费找零功能，支持哪些模式？",
+    "must_have_points": [
+      "转预存",
+      "找零"
+    ],
+    "nice_to_have_points": [
+      "默认模式"
+    ],
+    "fatal_mistakes": [
+      "强制转预存",
+      "仅找零"
+    ],
+    "reference_answer": "缴费找零支持转预存和直接找零两种模式供选择。",
+    "threshold": 0.67,
+    "category": "other",
+    "source_basis": "CMIOT-C01 缴费操作指南 3.1 缴费"
+  },
+  {
+    "id": "qa_093",
+    "name": "滞纳金计算运营配置",
+    "question": "运营配置滞纳金计算，参数是什么？",
+    "must_have_points": [
+      "日利率 0.003",
+      "按日计算",
+      "销账停止"
+    ],
+    "nice_to_have_points": [
+      "缴费周期后起算"
+    ],
+    "fatal_mistakes": [
+      "月利率",
+      "固定金额"
+    ],
+    "reference_answer": "滞纳金按日利率 0.003 计算，每日累加，账单完全销账后停止计算。",
+    "threshold": 0.75,
+    "category": "account_billing",
+    "source_basis": "CMIOT-C01 缴费操作指南 1. 缴费操作 - 功能概述"
+  },
+  {
+    "id": "qa_094",
+    "name": "挂账查询运营权限",
+    "question": "运营配置挂账查询权限，可查询哪些信息？",
+    "must_have_points": [
+      "流程状态",
+      "挂账金额",
+      "操作员",
+      "账户信息"
+    ],
+    "nice_to_have_points": [
+      "批次号"
+    ],
+    "fatal_mistakes": [
+      "仅查询金额",
+      "无信息限制"
+    ],
+    "reference_answer": "可查询挂账流程状态、金额、操作员、账户、批次号等全量信息。",
+    "threshold": 0.67,
+    "category": "menu_path",
+    "source_basis": "CMIOT-C04 挂账操作指南 3. 挂账 - 操作步骤"
+  },
+  {
+    "id": "qa_095",
+    "name": "调账方向运营配置",
+    "question": "运营配置调账方向，对应业务场景是什么？",
+    "must_have_points": [
+      "多收调增 / 减欠费",
+      "少收增欠费"
+    ],
+    "nice_to_have_points": [
+      "余额调整"
+    ],
+    "fatal_mistakes": [
+      "方向随意",
+      "场景无关"
+    ],
+    "reference_answer": "多收费用选调增余额或减欠费，少收费用选增加欠费，按场景匹配方向。",
+    "threshold": 0.67,
+    "category": "operation_steps",
+    "source_basis": "CMIOT-C02 调账操作指南 3.1 调账流程 - 调帐申请"
+  },
+  {
+    "id": "qa_096",
+    "name": "退款运营账户校验",
+    "question": "运营配置退款账户校验，排除哪些账户？",
+    "must_have_points": [
+      "测试卡",
+      "已销户",
+      "合打账户",
+      "欠费账户"
+    ],
+    "nice_to_have_points": [],
+    "fatal_mistakes": [
+      "任意账户可退",
+      "无排除"
+    ],
+    "reference_answer": "退款需排除测试卡、已销户、合打账户、欠费状态的账户。",
+    "threshold": 0.67,
+    "category": "restrictions",
+    "source_basis": "CMIOT-C03 退款以及 OneLink 缴费冲正操作指南全文档"
+  },
+  {
+    "id": "qa_097",
+    "name": "账单异步导出运营优化",
+    "question": "运营优化账单导出，异步导出优势是什么？",
+    "must_have_points": [
+      "大文件支持",
+      "不卡顿",
+      "后台处理",
+      "状态提示"
+    ],
+    "nice_to_have_points": [],
+    "fatal_mistakes": [
+      "同步导出更快",
+      "无需异步"
+    ],
+    "reference_answer": "异步导出支持大文件、页面不卡顿、后台处理并提供状态提示。",
+    "threshold": 0.67,
+    "category": "other",
+    "source_basis": "CMIOT-C08 电子对账单及用户账单查询操作指南全文档"
+  },
+  {
+    "id": "qa_098",
+    "name": "预开额度运营回款管控",
+    "question": "运营管控预开额度回款，多缴费部分规则是什么？",
+    "must_have_points": [
+      "超出部分",
+      "不拆分",
+      "不计入回款",
+      "可正常开票"
+    ],
+    "nice_to_have_points": [],
+    "fatal_mistakes": [
+      "全部计入回款",
+      "不可开票"
+    ],
+    "reference_answer": "缴费超预开额度部分不拆分回款，不计入回款额度，可正常开具发票。",
+    "threshold": 0.67,
+    "category": "account_billing",
+    "source_basis": "CMIOT-C15 预开预存发票操作指南 5. 预开预存发票 - 注意事项"
+  },
+  {
+    "id": "qa_099",
+    "name": "运营权限互斥配置",
+    "question": "运营配置系统权限，哪些角色必须互斥？",
+    "must_have_points": [
+      "挂账申请与审核",
+      "调账申请与审核",
+      "滞纳金申请与审核"
+    ],
+    "nice_to_have_points": [],
+    "fatal_mistakes": [
+      "可同一人操作",
+      "无需互斥"
+    ],
+    "reference_answer": "挂账、调账、滞纳金减免的申请与审核角色，均必须配置互斥。",
+    "threshold": 0.67,
+    "category": "restrictions",
+    "source_basis": "多文档角色互斥规则"
+  },
+  {
+    "id": "qa_100",
+    "name": "运营业务稽核周期",
+    "question": "运营稽核应收类业务，每日重点稽核哪些内容？",
+    "must_have_points": [
+      "缴费对账",
+      "调账合规",
+      "挂账审批",
+      "退款风控"
+    ],
+    "nice_to_have_points": [
+      "发票核对"
+    ],
+    "fatal_mistakes": [
+      "无需每日稽核",
+      "仅月底稽核"
+    ],
+    "reference_answer": "每日重点稽核缴费对账、调账合规、挂账审批、退款风控、发票核对等内容。",
+    "threshold": 0.67,
+    "category": "other",
+    "source_basis": "多文档运营稽核相关规则"
+  }
+]

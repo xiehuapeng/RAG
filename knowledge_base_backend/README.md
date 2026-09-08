@@ -1,8 +1,8 @@
-﻿# Knowledge Base Backend
+# Knowledge Base Backend
 
 这是一个基于 `FastAPI` 的知识库问答后端，面向“文档上传 - 切分 - 向量化 - 检索 - 问答 - 反馈 - 统计”这一整条业务链路。
 
-当前项目采用“业务数据落 SQLite，向量数据落 Chroma”的分层设计，并通过 `MiniMax` 兼容 `OpenAI` 的接口完成模型调用。
+当前项目采用“业务数据落 SQLite，向量数据落 Chroma”的分层设计。回答生成通过 OpenAI 兼容接口调用 LLM；问题理解主备顺序由配置决定。当前 `.env.example` 和本机配置为远程优先、Ollama 降级，无配置时的代码默认顺序相反。
 
 ## 项目定位
 
@@ -10,7 +10,8 @@
 - 支持文档上传、文档重建索引、单个 chunk 维护
 - 支持登录、会话管理、问答记录、反馈记录
 - 支持管理端统计看板和模型配置管理
-- 支持 `txt/md/json/csv/docx/pdf/png/jpg/jpeg` 上传白名单
+- 支持 `txt/md/json/csv/docx/pdf/xls/xlsx` 上传白名单
+- 当前问答主链路已包含问题理解、多路混合检索、证据引用和 `SSE` 流式进度
 
 ## 技术栈
 
@@ -19,7 +20,9 @@
 - 数据库：`SQLite`
 - 向量库：`Chroma`
 - Embedding：`sentence-transformers`，默认模型 `BAAI/bge-small-zh-v1.5`
-- 问答模型：`MiniMax`，通过 `OpenAI` 兼容协议接入
+- 问题理解：当前示例为远程 `deepseek-v4-flash` 优先、Ollama `gemma4:e4b` 降级
+- 精排：可选本地 Cross-Encoder `BAAI/bge-reranker-base`，前 16 个候选有界加分
+- 问答模型：默认 `deepseek-v4-flash`，通过 OpenAI 兼容协议接入
 - 文档解析：自定义结构化解析器 + `LangChain`
 - 启动方式：`uv` / `uvicorn`
 
@@ -45,6 +48,18 @@ python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
+```
+
+运行测试：
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests -q
+```
+
+如果你在仓库根目录，也可以用统一脚本：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\test-backend.ps1 -Install
 ```
 
 启动后可以访问：
@@ -119,6 +134,11 @@ uvicorn app.main:app --reload --port 8000
 
 模型配置表，存储模型类型、模型名称、配置 JSON 和启用状态。
 
+说明：
+
+- 当前它主要服务于管理端配置页面的数据维护。
+- 实际运行时使用的模型参数仍然由 `app/config.py` 从 `.env` / 环境变量读取。
+
 ## 代码结构总览
 
 ### 核心入口
@@ -150,21 +170,26 @@ uvicorn app.main:app --reload --port 8000
 - `app/services/auth.py`
 - `app/services/documents.py`
 - `app/services/documents_langchain.py`
+- `app/services/query_understanding.py`
 - `app/services/chat.py`
 - `app/services/dashboard.py`
 - `app/services/retrieval.py`
 - `app/services/retrieval_langchain.py`
 - `app/services/qa.py`
 - `app/services/qa_langchain.py`
-- `app/services/minimax.py`
+- `app/services/llm_client.py`
 - `app/services/langchain_runtime.py`
 - `app/services/parsers.py`
 - `app/services/vector_store.py`
 
 ### 测试与辅助
 
+- `tests/test_query_understanding.py`
+- `tests/test_chat_stream_progress.py`
+- `tests/test_chat_observability_logs.py`
 - `tests/test_retrieval_gate.py`
 - `tests/test_chat_fallback.py`
+- `tests/qa_eval/`：真实接口批量问答、规则评分和 LLM 裁判
 - `app/test.py`：本地模型流式调试脚本
 
 ## 文件级说明
@@ -211,11 +236,11 @@ uvicorn app.main:app --reload --port 8000
 关键配置：
 
 - `OPENAI_BASE_URL`
-- `OPENAI_API_KEY` / `MINIMAX_API_KEY`
-- `MINIMAX_MODEL_NAME`
-- `MINIMAX_TEMPERATURE`
-- `MINIMAX_MAX_OUTPUT_TOKENS`
-- `MINIMAX_REASONING_SPLIT`
+- `OPENAI_API_KEY` / `LLM_API_KEY`
+- `LLM_MODEL_NAME`
+- `LLM_TEMPERATURE`
+- `LLM_MAX_OUTPUT_TOKENS`
+- `LLM_REASONING_SPLIT`
 - `SESSION_EXPIRE_DAYS`
 - `MAX_UPLOAD_SIZE`
 - `CHUNK_SIZE`
@@ -371,11 +396,11 @@ uvicorn app.main:app --reload --port 8000
 - `chroma_query()`
 - `get_chat_llm()`
 
-### `app/services/minimax.py`
+### `app/services/llm_client.py`
 
 职责：
 
-- 封装 MiniMax 的 OpenAI 兼容客户端
+- 封装 LLM 的 OpenAI 兼容客户端
 - 提供非流式和流式模型调用
 
 核心函数：
@@ -556,10 +581,11 @@ uvicorn app.main:app --reload --port 8000
 
 当前实现特点：
 
-- 不再调用“语义理解 LLM”重写 query
-- 直接使用用户原始问题做检索
-- 通过 `_build_direct_analysis()` 构造默认分析对象
-- 如果证据不足，会触发兜底回答
+- 每轮先执行问题理解：规则关键词/追问判断 + LLM 按需补充
+- `QueryUnderstandingResult` 会通过 `_analysis_from_understanding()` 转成 `SemanticAnalysis`
+- `route=kb_qa` 时使用 `retrieve_with_understanding()` 做 `raw_query / rewrite_query / search_terms / search_queries` 多路混合检索
+- `route=out_of_scope` 时直接返回范围外回答
+- 模型失败或证据不足时，会触发本地兜底回答
 
 核心函数：
 
@@ -567,8 +593,9 @@ uvicorn app.main:app --reload --port 8000
 - `delete_session()`
 - `send_message()`
 - `stream_message()`
-- `_answer_with_minimax()`
-- `_build_direct_analysis()`
+- `_run_query_understanding()`
+- `_answer_with_llm()`
+- `_analysis_from_understanding()`
 - `_should_fallback_no_answer()`
 - `build_answer()`
 
@@ -982,31 +1009,47 @@ uvicorn app.main:app --reload --port 8000
 
 1. 用户在聊天页发问
 2. 服务端保存 `user` 消息
-3. 使用原始问题直接检索知识库
-4. 进行关键词召回和向量召回
-5. 合并、重排、过滤
-6. 把检索结果组织成证据上下文
-7. 调用问答模型生成回答
-8. 提取摘要和追问建议
-9. 保存 `assistant` 消息和会话摘要
-10. 返回同步 JSON 或 SSE 流式数据
+3. 规则层执行关键词、追问和路由判断
+4. 规则不确定或需要语义扩展时，按配置调用主模型和备用 provider；远程无隐式重试，主备共享超时调度预算
+5. `out_of_scope` 问题跳过 RAG；`kb_qa` 问题使用原始、改写和扩展 query 做多路检索
+6. 合并关键词与向量候选，执行规则粗排、可选 Cross-Encoder 加分、相关性过滤和来源分桶；桶内最终得分优先于旧召回名次
+7. 把最终 chunk 组织成带引用的证据上下文
+8. 调用 LLM 生成回答，并提取摘要和追问建议
+9. 保存 `assistant` 消息、引用、日志和会话摘要
+10. 返回同步 JSON 或 `start -> understanding -> retrieving -> filtering -> generating -> completed` SSE 流
 
 ## 当前已知限制
 
-- PDF 和 OCR 解析仍然是预留方向
-- 当前问答链路已经不是“语义理解 LLM 重写 query”模式
-- 目前是“检索结果摘要化 + 模型生成答案”的混合模式
+- PDF 当前主要依赖文本提取，完整 OCR 仍是预留方向
+- 当前问题理解仍由一次模型调用同时补充分类、改写和检索扩展；两阶段分层方案尚未实施
+- 已接入 Cross-Encoder，但仍是有界加分与来源配额结合，并非纯模型排序；质量增益需 A/B 评测
+- 同名覆盖上传先完成新内容解析和向量写入，再事务切换记录；失败保留旧文档，提交后清理旧资源。向量清理失败可能留孤儿数据，需按日志补偿
+- 问题理解单次超时由 `QUERY_UNDERSTANDING_TIMEOUT_SECONDS` 控制，主备共享 `QUERY_UNDERSTANDING_TOTAL_TIMEOUT_SECONDS` 调度预算；HTTP 分阶段超时不是整条链路的硬截止
 - SQLite 适合轻量场景，不适合高并发大规模部署
 - Chroma 与本地 embedding 模型都依赖可用的本地环境
 
 ## 测试
 
-当前测试主要覆盖两个点：
+当前自动化测试主要覆盖：
 
+- 问题理解、追问改写、路由判断和模型降级
 - 检索门槛逻辑
 - 问答兜底逻辑
+- SSE 进度协议
+- 问题理解、检索和证据日志
 
 测试文件：
 
+- `tests/test_query_understanding.py`
+- `tests/test_chat_stream_progress.py`
+- `tests/test_chat_observability_logs.py`
 - `tests/test_retrieval_gate.py`
 - `tests/test_chat_fallback.py`
+
+推荐在仓库根目录执行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\test-backend.ps1 -Install
+```
+
+真实接口批量问答、规则评分和 LLM 裁判流程见 [项目测试说明](../项目测试说明.md)。
